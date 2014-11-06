@@ -62,7 +62,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     if ~isempty(BagFileName)
 
         fprintf('Loading rosbag file...');
-        BagOut = Bag.load([BagDirName '/' BagFileName]);
+        BagOut = ros.Bag.load([BagDirName '/' BagFileName]);
         fprintf('finished!\n');
 
     else

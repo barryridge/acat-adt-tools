@@ -6,6 +6,7 @@ MatlabRootDir = '/home/barry/Research/Matlab';
 % A tool for manipulating rosbags in Matlab without ROS.
 %
 addpath([MatlabRootDir '/Tools/ROS/matlab_rosbag-0.4.1-linux64']);
+% addpath([MatlabRootDir '/Tools/ROS/matbag_ws/src/matlab_rosbag/src']);
 
 % xml2struct
 % http://www.mathworks.com/matlabcentral/fileexchange/28518-xml2struct
