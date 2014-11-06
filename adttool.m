@@ -6,7 +6,7 @@ function varargout = adttool(BagSpec, varargin)
 % http://www.acat-project.eu/
 % Author: Barry Ridge, JSI.
 % E-mail: barry.ridge@ijs.si
-% Last updated: 4th Nov 2014 (or check repository!)
+% Last updated: 6th Nov 2014 (or check repository!)
 % Repository: https://barryridge@bitbucket.org/barryridge/acat-adt-generator.git
 % Please e-mail me for access.
 %
@@ -43,6 +43,20 @@ function varargout = adttool(BagSpec, varargin)
 %                           and action chunks can be automatically
 %                           generated in the ADT XML.
 %
+%       'ObjLink', Topic, SearchString, Object: (NOT YET IMPLEMENTED!)
+%
+%                           Links an object pose topic in the rosbag to an
+%                           object as previously defined in SECLinks or elsewhere.
+%                           When action chunks are generated from SECLinks,
+%                           object start and end poses will then be found
+%                           in the topic and included in the action chunk XML.
+%                           SearchString is a string that is searched for
+%                           in the topic, e.g. 'faceplate', to find the
+%                           relevant object pose info.
+%                           This is a bit of a hack for the moment pending
+%                           a better implementation of object pose
+%                           recording in the rosbags.
+%
 % Output Arguments:
 %
 %       XMLOut:             An XML struct structured using xml_io_tools
@@ -78,12 +92,15 @@ function varargout = adttool(BagSpec, varargin)
     % XML variables...
     XML = [];    
     
-    % SECs and action chunks...
-    SECLinks = [];
-    SEC = [];
-    ADTBagActionChunkMeta = [];
+    % Objects...
     Objects = [];
-    SECObjTab = [];
+    ObjLinks = [];
+    
+    % SECs and action chunks...
+    SEC = [];
+    SECLinks = [];
+    ADTBagActionChunkMeta = [];    
+    SECObjTab = [];        
     
     
     %% -------------------------
@@ -206,6 +223,11 @@ function varargout = adttool(BagSpec, varargin)
                 i=i+1; if ischar(varargin{i}) SECLinks{end}.FirstObj = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) SECLinks{end}.SecondObj = varargin{i}; else argok = 0; end                
                 
+            case {'obj', 'objlink', 'obj_link', 'object', 'objectlink', 'object_link'},
+                i=i+1; if ischar(varargin{i}) ObjLinks{end+1}.Topic = varargin{i}; else argok = 0; end
+                i=i+1; if ischar(varargin{i}) ObjLinks{end}.SearchString = varargin{i}; else argok = 0; end
+                i=i+1; if ischar(varargin{i}) ObjLinks{end}.Object = varargin{i}; else argok = 0; end
+                
             otherwise, argok = 0;
         end
       else
@@ -324,7 +346,7 @@ function varargout = adttool(BagSpec, varargin)
 
             % Generate XML boilerplate for ADT.
             fprintf('No ADT XML file found.\n');
-            fprintf('Generating ADT XML...');
+            fprintf('Generating ADT XML boilerplate...');
 
             if ~isempty(BagFileName)
                 [~, XMLFileName, ~] = fileparts(BagFileName);
@@ -449,12 +471,12 @@ function varargout = adttool(BagSpec, varargin)
     
     %% -------------------
     % MAIN XML PROCESSING
-    %---------------------
-    
-    fprintf('Processing XML.');
+    %---------------------   
     
     % SEC links...
     if ~isempty(SECLinks)
+        
+        fprintf('Processing SECLinks.');
         
         % Find the SEC topic indices
         for iSEC = 1:size(SECLinks,2)
@@ -509,7 +531,10 @@ function varargout = adttool(BagSpec, varargin)
                 currentchunk = currentchunk + 1;
                 
                 % ...and record the current SE in the SEC.
-                SEC(:,end+1) = CurrentSE';                
+                SEC(:,end+1) = CurrentSE;
+                
+                % Print progress dots...
+                fprintf('.');
             end
 
         end
@@ -523,10 +548,14 @@ function varargout = adttool(BagSpec, varargin)
             error('adttool: SEC and action chunk cardinalities do not match!');
         end
         
+        fprintf('finished!\n');
+        
     end
     
     % Generate SEC XML...
     if ~isempty(SEC)
+        
+        fprintf('Generating SEC XML.');
         
         % Number of action chunks...
         XML.anchor_DASH_points.ATTRIBUTE.nr_DASH_events = size(SEC,2) - 1;
@@ -542,12 +571,18 @@ function varargout = adttool(BagSpec, varargin)
                 SECLinks{iSECLine}.FirstObj;
             XML.anchor_DASH_points.SEC_DASH_line(iSECLine).ATTRIBUTE.second =...
                 SECLinks{iSECLine}.SecondObj;
+            
+            % Print progress dots...
+            fprintf('.');
         end
         
+        fprintf('finished!\n');        
     end
     
     % Generate action chunks from SEC links...
     if ~isempty(ADTBagActionChunkMeta)
+        
+        fprintf('Generating action chunk XML from SECLinks.');
         
         % Find unique objects in SECLinks...
         for iSECLink = 1:size(SECLinks,2)
@@ -590,6 +625,18 @@ function varargout = adttool(BagSpec, varargin)
                     xor(SEC(iSECLink,iChunk+1), SEC(iSECLink,iChunk));
             end
             
+            % Check if any objects have been linked to topics via
+            % ObjLinks and create an Object-to-ObjectLink lookup table...
+            ObjObjLinksTab = zeros(1,size(Objects,2));            
+            if ~isempty(ObjLinks)
+                for iObjLink = 1:size(ObjLinks,2)
+                    ObjObjLinkMatches = find(strcmp(Objects, ObjLinks{iObjLink}.Object));
+                    if ~isempty(ObjObjLinkMatches)
+                        ObjObjLinksTab(ObjObjLinkMatches(1)) = iObjLink;
+                    end
+                end
+            end
+            
             % Generate the XML for each object depending on whether or not
             % the object interacts with the hand.
             for iObj = 1:size(Objects,2)
@@ -602,140 +649,129 @@ function varargout = adttool(BagSpec, varargin)
                     
                     % Start timestamp...
                     XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.timestamp =...
-                        ADTBagActionChunkMeta{1}.StartMeta{1}.time.time;
-                    
-                    % Modify the position, quaternion and pose_reliability
-                    % fields.                
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position = [];
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position.CONTENT =...
-                        [ADTBagActionChunkMeta{iChunk}.StartStep{1} ADTBagActionChunkMeta{iChunk}.StartStep{1} ADTBagActionChunkMeta{iChunk}.StartStep{1}];
-
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion = [];
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion.CONTENT =...
-                        [ADTBagActionChunkMeta{iChunk}.StartStep{1} ADTBagActionChunkMeta{iChunk}.StartStep{1} ADTBagActionChunkMeta{1}.StartStep{iChunk} ADTBagActionChunkMeta{iChunk}.StartStep{1}];
-
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability = [];
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability.CONTENT =...
-                        ADTBagActionChunkMeta{iChunk}.StartStep{1};
+                        ADTBagActionChunkMeta{iChunk}.StartMeta{1}.time.time;
                     
                     % End timestamp...
                     XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.timestamp =...
-                        ADTBagActionChunkMeta{1}.EndMeta{1}.time.time;
-                    
-                    % Modify the position, quaternion and pose_reliability
-                    % fields.                
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position = [];
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position.CONTENT =...
-                        [ADTBagActionChunkMeta{iChunk}.EndStep{1} ADTBagActionChunkMeta{iChunk}.EndStep{1} ADTBagActionChunkMeta{iChunk}.EndStep{1}];
+                        ADTBagActionChunkMeta{iChunk}.EndMeta{1}.time.time;
+                                       
+                    % If a topic has been linked to this object...
+                    if ObjObjLinksTab(iObj)
+                        
+                        % ...grab the topic...
+                        iObjTopic = findtopic(ADTBagTopicNames, ObjLinks{ObjObjLinksTab(iObj)}.Topic);
+                        
+                        % ...search for the start and end position timestamps in the
+                        % rosbag...
+                        iObjStartFrame = 0;
+                        iObjEndFrame = 0;
+                        for iFrame = 1:size(ADTBagMeta{iObjTopic}, 2)
+                            
+                            if ADTBagMeta{iObjTopic}{iFrame}.time.time >=...
+                               XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.timestamp...
+                                && ~iObjStartFrame
+                                iObjStartFrame = iFrame;                               
+                            end
+                            
+                            if ADTBagMeta{iObjTopic}{iFrame}.time.time >=...
+                               XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.timestamp
+                                iObjEndFrame = iFrame;
+                                break;
+                            end
+                        end
+                        
+                        % ...and extract the object's pose that way by
+                        % using the SearchString specified in the ObjLink
+                        % to search the topic output at that timestep...
+                        %
+                        % WARNING: This is pretty hacky and may break soon.
+                        % Based on current implementation of object pose
+                        % topic publishing.
+                        %
+                        % Adding object positions.  Leaving out quaternions
+                        % for now, pending further discussion.
+                        %                        
+                        % We start with the object start pose...
+                        foo = findstr(ADTBagMsg{iObjTopic}{iObjStartFrame}.data, ObjLinks{ObjObjLinksTab(iObj)}.SearchString);
+                        ObjStartPoseString = ADTBagMsg{iObjTopic}{iObjStartFrame}.data(foo(end):end);
+                        ObjStartPoseString = ObjStartPoseString(size(ObjLinks{ObjObjLinksTab(iObj)}.SearchString,2)+1:end);
+                        ObjStartPoseTMat = [reshape(str2num(ObjStartPoseString),4,3)'; [0 0 0 1]];
+                        
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position.CONTENT =...
+                            ObjStartPoseTMat(1:3, end)';
 
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion = [];
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion.CONTENT =...
-                        [ADTBagActionChunkMeta{iChunk}.EndStep{1} ADTBagActionChunkMeta{1}.EndStep{1} ADTBagActionChunkMeta{iChunk}.EndStep{1} ADTBagActionChunkMeta{iChunk}.EndStep{1}];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion.CONTENT =...
+                            'void';
 
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability = [];
-                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability.CONTENT =...
-                        ADTBagActionChunkMeta{iChunk}.EndStep{1};
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability.CONTENT =...
+                            'void';                                               
+                        
+                        % ...and repeat for the end pose...
+                        foo = findstr(ADTBagMsg{iObjTopic}{iObjEndFrame}.data, ObjLinks{ObjObjLinksTab(iObj)}.SearchString);
+                        ObjEndPoseString = ADTBagMsg{iObjTopic}{iObjEndFrame}.data(foo(end):end);
+                        ObjEndPoseString = ObjEndPoseString(size(ObjLinks{ObjObjLinksTab(iObj)}.SearchString,2)+1:end);
+                        ObjEndPoseTMat = [reshape(str2num(ObjEndPoseString),4,3)'; [0 0 0 1]];
+                        
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position.CONTENT =...
+                            ObjEndPoseTMat(1:3, end)';
+
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion.CONTENT =...
+                            'void';
+
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability.CONTENT =...
+                            'void';
+                        
+                    % ...otherwise output 'void'.
+                    else
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position.CONTENT =...
+                            'void';
+
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion.CONTENT =...
+                            'void';
+
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability.CONTENT =...
+                            'void';
+                        
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position.CONTENT =...
+                            'void';
+
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion.CONTENT =...
+                            'void';
+
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability = [];
+                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability.CONTENT =...
+                            'void';
+                    end
+                                                            
+                
+                % ...if the object does not interact with the hand in this
+                % action chunk, we just set it to 'void' in the XML.
                 else
                     
                     XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).CONTENT = 'void';
                 end
                 
+                % Print progress dots...
+                fprintf('.');
+                
             end
         end
         
+        fprintf('finished!\n');        
     end
     
-    
-    % if isfield(XML, 'action_DASH_chunks')
-    % 
-    %     if isfield(XML.action_DASH_chunks, 'action_DASH_chunk')
-    % 
-    %         %
-    %         % NOTE: Proof of concept, for the moment (24th Oct 2014).
-    %         % We traverse each action_chunk(i).main_object_act field,
-    %         % search for the start and end timestamps in the rosbag,
-    %         % and modify the position, quaternion and pose_reliability
-    %         % fields for each action_chunk by replacing 'xxx xxx xxx' placeholders
-    %         % with numerical placeholders based on the relevant rosbag frame.
-    %         % Object poses have not been included in rosbags recorded up
-    %         % until now (24/10/14).  Work in progress.
-    %         % 
-    %         for iChunk = 1:size(XML.action_DASH_chunks.action_DASH_chunk,1)
-    % 
-    %             %% Search for the start position timestamp in the rosbag.
-    %             % We just use the first topic for now in the absence
-    %             % of a main object pose topic.
-    %             iTopic = 1;
-    %             for iFrame = 1:size(ADTBagMeta{iTopic}, 2)
-    %                 % 
-    %                 if ADTBagMeta{1}{iFrame}.time.time >=...
-    %                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.timestamp
-    %                     iStartFrame = iFrame;
-    %                     break;
-    %                 end
-    %             end                
-    % 
-    %             % Modify the position, quaternion and pose_reliability
-    %             % fields.                
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.pose.position = [];
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.pose.position.CONTENT =...
-    %                 [iStartFrame iStartFrame iStartFrame];
-    % 
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.pose.quaternion = [];
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.pose.quaternion.CONTENT =...
-    %                 [iStartFrame iStartFrame iStartFrame iStartFrame];
-    % 
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.pose.pose_DASH_reliability = [];
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.start_DASH_point.pose.pose_DASH_reliability.CONTENT =...
-    %                 iStartFrame;
-    % 
-    %             % Print progress dots...
-    %             fprintf('.');
-    % 
-    %             %% Search for the end position timestamp in the rosbag.
-    %             % We just use the first topic for now in the absence
-    %             % of a main object pose topic.
-    %             iTopic = 1;
-    %             for iFrame = 1:size(ADTBagMeta{iTopic}, 2)
-    %                 % 
-    %                 if ADTBagMeta{1}{iFrame}.time.time >=...
-    %                    XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.timestamp
-    %                     iEndFrame = iFrame;
-    %                     break;
-    %                 end
-    %             end                
-    % 
-    %             % Modify the position, quaternion and pose_reliability
-    %             % fields.                
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.pose.position = [];
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.pose.position.CONTENT =...
-    %                 [iEndFrame iEndFrame iEndFrame];
-    % 
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.pose.quaternion = [];
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.pose.quaternion.CONTENT =...
-    %                 [iEndFrame iEndFrame iEndFrame iEndFrame];
-    % 
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.pose.pose_DASH_reliability = [];
-    %             XML.action_DASH_chunks.action_DASH_chunk(iChunk).main_DASH_object0x2Dact.end_DASH_point.pose.pose_DASH_reliability.CONTENT =...
-    %                 iEndFrame;
-    % 
-    %             % Print progress dots...
-    %             fprintf('.');
-    %         end
-    % 
-    %     else
-    %         %
-    %         % TODO: What happens if we have no action_chunk field entries?
-    %         %
-    %     end
-    % 
-    %     fprintf('finished!\n');
-    % 
-    % else
-    %     error(['The XML file ' XMLFileName ' does not appear to be formatted correctly.']);
-    % end
-    
-    
+        
     %% -----------
     % FILE SAVING
     %-------------
@@ -793,8 +829,7 @@ function varargout = adttool(BagSpec, varargin)
     
     function result = interactswithhand(IntTab, iObj)
         
-        % Here be recursive dragons! 
-        
+        % Here be recursive dragons!        
         for jObj = 1:size(IntTab,2)
             if IntTab(iObj, jObj) && jObj == 1
                 result = true;
@@ -806,5 +841,4 @@ function varargout = adttool(BagSpec, varargin)
         end
         
         result = false;
-        
-        
+            
