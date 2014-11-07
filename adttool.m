@@ -43,7 +43,7 @@ function varargout = adttool(BagSpec, varargin)
 %                           and action chunks can be automatically
 %                           generated in the ADT XML.
 %
-%       'ObjLink', Topic, SearchString, Object: (NOT YET IMPLEMENTED!)
+%       'ObjLink', Topic, SearchString, Object:
 %
 %                           Links an object pose topic in the rosbag to an
 %                           object as previously defined in SECLinks or elsewhere.
@@ -56,6 +56,16 @@ function varargout = adttool(BagSpec, varargin)
 %                           This is a bit of a hack for the moment pending
 %                           a better implementation of object pose
 %                           recording in the rosbags.
+%
+%       'Set', XMLNode, Value:
+%
+%                           Sets the value of an XML node.  E.g.
+%                           'Set', 'main-object.name', 'Jar'
+%                           'Set', 'main-object.cad-model.cad-model.uri',
+%                           'my_jar_model.pcd'.
+%                           All such 'sets' are applied towards at the end
+%                           of XML processing, after XML files have been
+%                           read or generated.
 %
 % Output Arguments:
 %
@@ -100,7 +110,10 @@ function varargout = adttool(BagSpec, varargin)
     SEC = [];
     SECLinks = [];
     ADTBagActionChunkMeta = [];    
-    SECObjTab = [];        
+    SECObjTab = [];
+    
+    % 'set' list...
+    SetList = [];
     
     
     %% -------------------------
@@ -227,6 +240,10 @@ function varargout = adttool(BagSpec, varargin)
                 i=i+1; if ischar(varargin{i}) ObjLinks{end+1}.Topic = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) ObjLinks{end}.SearchString = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) ObjLinks{end}.Object = varargin{i}; else argok = 0; end
+                
+            case {'set'},
+                i=i+1; if ischar(varargin{i}) SetList{end+1}.Node = varargin{i}; else argok = 0; end
+                i=i+1; if ischar(varargin{i}) SetList{end}.Value = varargin{i}; else argok = 0; end
                 
             otherwise, argok = 0;
         end
@@ -768,7 +785,29 @@ function varargout = adttool(BagSpec, varargin)
             end
         end
         
-        fprintf('finished!\n');        
+        fprintf('finished!\n');                
+    end
+    
+    
+    % Apply settings from 'set' list...
+    if ~isempty(SetList)
+        
+        fprintf('Applying "set" list.');
+        
+        for iSet = 1:size(SetList,2)
+            
+            % Format the node string for xml_io_tools...
+            NodeString = strrep(SetList{iSet}.Node, '-', '_DASH_');
+            
+            % Assign the new value...
+            eval(['XML.' NodeString ' = ''' SetList{iSet}.Value ''';']);
+            
+            % Print progress dots...
+            fprintf('.');
+            
+        end
+        
+        fprintf('finished!\n');
     end
     
         
@@ -826,6 +865,7 @@ function varargout = adttool(BagSpec, varargin)
             end
 
         end
+        
     
     function result = interactswithhand(IntTab, iObj)
         
@@ -841,4 +881,4 @@ function varargout = adttool(BagSpec, varargin)
         end
         
         result = false;
-            
+        
