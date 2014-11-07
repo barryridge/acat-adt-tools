@@ -2,7 +2,7 @@
 
 Generates new, or populates existing, ADT XML files using rosbag recordings.
 
-### What is this repository for? ###
+### INSTALL PREREQUISITES ###
 
 * Quick summary
 * Version
