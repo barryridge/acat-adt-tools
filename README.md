@@ -4,9 +4,11 @@ Generates new, or populates existing, ADT XML files using rosbag recordings.
 
 ### INSTALL PREREQUISITES ###
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+* [matlab_rosbag](https://github.com/bcharrow/matlab_rosbag)
+[https://github.com/bcharrow/matlab_rosbag](https://github.com/bcharrow/matlab_rosbag)
+
+A tool for manipulating rosbags in Matlab without ROS.
+
 
 ### How do I get set up? ###
 
