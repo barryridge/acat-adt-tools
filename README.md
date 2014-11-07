@@ -6,16 +6,18 @@ Generates new, or populates existing, ADT XML files using rosbag recordings.
 
 Install the following prerequisites:
 
-* [matlab_rosbag](https://github.com/bcharrow/matlab_rosbag) *
+## [matlab_rosbag](https://github.com/bcharrow/matlab_rosbag) ##
 
 A tool for manipulating rosbags in Matlab without ROS.
 
 Notes:
 * Compilation can be a bit tricky.  Use one of the binaries if possible.
 
-* [xml_io_tools](http://www.mathworks.com/matlabcentral/fileexchange/12907-xml-io-tools)
+
+## [xml_io_tools](http://www.mathworks.com/matlabcentral/fileexchange/12907-xml-io-tools) ##
 
 A tool for reading XML into Matlab structs and writing them out to XML again.
+
 
 ### USAGE ###
 
