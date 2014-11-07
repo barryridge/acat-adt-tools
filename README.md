@@ -7,6 +7,7 @@ Install the following prerequisites:
 
 [matlab_rosbag](https://github.com/bcharrow/matlab_rosbag)
 - A tool for manipulating rosbags in Matlab without ROS.
+
 Notes:
 
 * Compilation can be a bit tricky.  Use one of the binaries if possible.
