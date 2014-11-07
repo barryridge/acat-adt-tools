@@ -21,3 +21,9 @@ Generates new, or populates existing, ADT XML files using rosbag recordings.
 ### USAGE ###
 
 Try running the demo.m file.  A path pointing to a sample rosbag needs to be changed in there too.
+
+The demo file will load up a rosbag file and generate ADT XML from it using the adttool script.
+
+### RELEASE NOTES ###
+
+v0.1: adttool is working well, but adteditor, the GUI ADT editing tool, is not yet in a functional state.
