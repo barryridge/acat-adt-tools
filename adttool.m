@@ -6,14 +6,17 @@ function varargout = adttool(BagSpec, varargin)
 % http://www.acat-project.eu/
 % Author: Barry Ridge, JSI.
 % E-mail: barry.ridge@ijs.si
-% Last updated: 6th Nov 2014 (or check repository!)
+% Last updated: 18th March 2015 (or check repository!)
 % Repository: https://barryridge@bitbucket.org/barryridge/acat-adt-generator.git
 % Please e-mail me for access.
 %
 % Description:              Generates new, or populates existing, ADT XML
 %                           files using rosbag recordings.
+%                               
+% Prerequisite packages:    matlab_rosbag, xml_io_tools
+%                           (see README.md and setpaths.m for further
+%                           info)
 %   
-%
 % Usage:                    [XMLOut] = adttool(BagSpec, Options)
 %
 % Input Arguments:
@@ -42,6 +45,14 @@ function varargout = adttool(BagSpec, varargin)
 %                           If such SECLinks are defined, both SECs
 %                           and action chunks can be automatically
 %                           generated in the ADT XML.
+%                           If any SECLink specifies an empty Topic ([] or
+%                           {}), then SECs and ActionChunks will need to
+%                           specified manually (see below).
+%
+%                           Defaults:
+%                           'SECLink', [], 'hand', 'main-object'
+%                           'SECLink', [], 'main-object', 'primary-object'
+%                           'SECLink', [], 'primary-object', 'secondary-object'
 %
 %       'ObjLink', Topic, SearchString, Object:
 %
@@ -57,6 +68,27 @@ function varargout = adttool(BagSpec, varargin)
 %                           a better implementation of object pose
 %                           recording in the rosbags.
 %
+%       'SEC', SEC:         SEC is an N x D binary array specifying the
+%                           semantic event chain.
+%
+%       'ActionChunks', ActionChunks:
+%
+%                           ActionChunks is an N x D-1 cell-array used for
+%                           manual specification of action chunks or
+%                           specification via the ADT GUI editor.
+%                           Action chunks are specified with start and end
+%                           timesteps where, e.g. {{1,100}, {200, 300}}
+%                           specifies two action chunks starting at
+%                           timestep 1 and finishing at timestep 100, and
+%                           starting at timestep 200 and finishing at
+%                           timestep 300, respectively.
+%
+%       'TimingTopic', Topic:
+%
+%                           Specifies a topic to be used as the main
+%                           reference when action chunks are specified
+%                           manually.
+%
 %       'Set', XMLNode, Value:
 %
 %                           Sets the value of an XML node.  E.g.
@@ -71,12 +103,11 @@ function varargout = adttool(BagSpec, varargin)
 %
 %       XMLOut:             An XML struct structured using xml_io_tools
 %                           formatting.
-%                               
-% Prerequisite packages:    matlab_rosbag, xml_io_tools
-%                           (see README.md and setpaths.m for further
-%                           info)
 %
-
+% Examples:
+%
+%       See the adtdemo.m file.
+%
     %% ---------
     % VARIABLES
     %-----------
@@ -111,6 +142,9 @@ function varargout = adttool(BagSpec, varargin)
     SECLinks = [];
     ADTBagActionChunkMeta = [];    
     SECObjTab = [];
+    ActionChunks = {};
+    TimingTopic = [];
+    iTimingTopic = 0;
     
     % 'set' list...
     SetList = [];
@@ -217,6 +251,7 @@ function varargout = adttool(BagSpec, varargin)
                     XMLFileName = [XMLFileName Ext];
                     if isempty(Pathstr)
                         XMLDirName = '.';
+                        
                     else
                         XMLDirName = Pathstr;
                     end
@@ -231,15 +266,24 @@ function varargout = adttool(BagSpec, varargin)
                            'an XML file name or an XML struct.']);
                 end
                 
-            case {'sec', 'seclink', 'sec_link'},                
-                i=i+1; if ischar(varargin{i}) SECLinks{end+1}.Topic = varargin{i}; else argok = 0; end
+            case {'seclink', 'sec_link'},                
+                i=i+1; if ischar(varargin{i}) || isempty(varargin{i}) SECLinks{end+1}.Topic = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) SECLinks{end}.FirstObj = varargin{i}; else argok = 0; end
-                i=i+1; if ischar(varargin{i}) SECLinks{end}.SecondObj = varargin{i}; else argok = 0; end                
+                i=i+1; if ischar(varargin{i}) SECLinks{end}.SecondObj = varargin{i}; else argok = 0; end
                 
-            case {'obj', 'objlink', 'obj_link', 'object', 'objectlink', 'object_link'},
+            case {'obj', 'objlink', 'obj_link', 'obj-link', 'object', 'objectlink', 'object_link', 'object-link'},
                 i=i+1; if ischar(varargin{i}) ObjLinks{end+1}.Topic = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) ObjLinks{end}.SearchString = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) ObjLinks{end}.Object = varargin{i}; else argok = 0; end
+                
+            case {'actionchunks', 'action_chunks', 'action-chunks'},
+                i=i+1; if iscell(varargin{i}) ActionChunks = varargin{i}; else argok = 0; end
+                
+            case {'sec'},
+                i=i+1; if isnumeric(varargin{i}) SEC = varargin{i}; else argok = 0; end
+                
+            case {'timingtopic', 'timing_topic', 'timing-topic', 'timetopic', 'time_topic', 'time-topic'},
+                i=i+1; if isnumeric(varargin{i}) TimingTopic = varargin{i}; else argok = 0; end
                 
             case {'set'},
                 i=i+1; if ischar(varargin{i}) SetList{end+1}.Node = varargin{i}; else argok = 0; end
@@ -255,6 +299,7 @@ function varargout = adttool(BagSpec, varargin)
       end
       i = i+1;
     end
+    
     
     
     %% ------------
@@ -490,86 +535,146 @@ function varargout = adttool(BagSpec, varargin)
     % MAIN XML PROCESSING
     %---------------------   
     
+    %
     % SEC links...
-    if ~isempty(SECLinks)
+    %
+    
+    % Set default SECLinks if none were passed as args...
+    if isempty(SECLinks)
         
-        fprintf('Processing SECLinks.');
+        SECLinks{1}.Topic = [];
+        SECLinks{1}.FirstObj = 'hand';
+        SECLinks{1}.SecondObj = 'main-object';
         
-        % Find the SEC topic indices
-        for iSEC = 1:size(SECLinks,2)
-            SECTopicIndices(iSEC) = findtopic(ADTBagTopicNames, SECLinks{iSEC}.Topic);
-        end
+        SECLinks{2}.Topic = [];
+        SECLinks{2}.FirstObj = 'main-object';
+        SECLinks{2}.SecondObj = 'primary-object';
         
+        SECLinks{3}.Topic = [];
+        SECLinks{3}.FirstObj = 'primary-object';
+        SECLinks{3}.SecondObj = 'secondary-object';
+        
+    end
+        
+    fprintf('Processing SECLinks.');
+
+    % Find the SEC topic indices
+    for iSEC = 1:size(SECLinks,2)
+        SECTopicIndices(iSEC) = findtopic(ADTBagTopicNames, SECLinks{iSEC}.Topic);
+    end
+
+    if ~any(SECTopicIndices==0)
+
         % Grab the first semantic event (SE) from the first timestep
         % and start building the SEC and collecting topic metas for
         % action chunks.
         currentchunk = 1;
         for iTopic = 1:size(SECTopicIndices,2)
-            
+
             PreviousSE(iTopic) = str2num(ADTBagMsg{SECTopicIndices(iTopic)}{1}.data);
-            
+
             ADTBagActionChunkMeta{currentchunk}.StartStep{iTopic} = 1;
-            
+
             ADTBagActionChunkMeta{currentchunk}.StartMeta{iTopic} =...
                 ADTBagMeta{SECTopicIndices(iTopic)}{1};
         end
-        
+
         SEC(:,1) = PreviousSE';
-        
+
         % Build both the SEC and an action chunk meta sequence.
         for iStep = 1:size(ADTBagMsg{SECTopicIndices(1)}, 2)
-            
+
             for iTopic = 1:size(SECTopicIndices,2)
                 CurrentSE(iTopic) = str2num(ADTBagMsg{SECTopicIndices(iTopic)}{iStep}.data);
             end
-            
+
             % If there has been a semantic change...
             if sum(abs(CurrentSE - PreviousSE)) > 0
-                
+
                 for iTopic = 1:size(SECTopicIndices,2)
-                    
+
                     % ...we record the end of the previous action chunk...
                     ADTBagActionChunkMeta{currentchunk}.EndStep{iTopic} = iStep;
 
                     ADTBagActionChunkMeta{currentchunk}.EndMeta{iTopic} =...
                         ADTBagMeta{SECTopicIndices(iTopic)}{iStep};
-                    
+
                     % ...and record the start of the current action chunk.
                     ADTBagActionChunkMeta{currentchunk + 1}.StartStep{iTopic} = iStep;
 
                     ADTBagActionChunkMeta{currentchunk + 1}.StartMeta{iTopic} =...
                         ADTBagMeta{SECTopicIndices(iTopic)}{iStep};
                 end
-                
+
                 % Finally we update the previous SE...
                 PreviousSE = CurrentSE;
-                
+
                 % ...advance the action chunk marker...
                 currentchunk = currentchunk + 1;
-                
+
                 % ...and record the current SE in the SEC.
                 SEC(:,end+1) = CurrentSE;
-                
+
                 % Print progress dots...
                 fprintf('.');
             end
 
         end
-        
+
         % Delete the last action chunk...
         ADTBagActionChunkMeta(end) = [];
-        
+
         % Check to ensure that the SEC size corresponds to the number of
         % action chunks...
         if size(ADTBagActionChunkMeta,2) ~= (size(SEC,2) - 1)            
             error('adttool: SEC and action chunk cardinalities do not match!');
         end
+
+        fprintf('finished!\n');            
+
+    %
+    % Action chunks...
+    %
+    elseif ~isempty(ActionChunks)
         
-        fprintf('finished!\n');
+        % We will need a timing topic to do things this way...
+        if isempty(TimingTopic)
+            % Set a default...
+            TimingTopic = 'data';
+        end
         
-    end
+        iTimingTopic = findtopic(ADTBagTopicNames, TimingTopic, 'fuzzy');
+
+        for iChunk = 1:size(ActionChunks,2)
+            
+            for iSECLink = 1:size(SECLinks, 2)
+
+                ADTBagActionChunkMeta{iChunk}.StartStep{iSECLink} =...
+                    ActionChunks{iChunk}{1};                
+
+                ADTBagActionChunkMeta{iChunk}.StartMeta{iSECLink} =...
+                    ADTBagMeta{iTimingTopic}{ActionChunks{iChunk}{1}};
+                
+                ADTBagActionChunkMeta{iChunk}.EndStep{iSECLink} =...
+                    ActionChunks{iChunk}{2};
+                
+                ADTBagActionChunkMeta{iChunk}.EndMeta{iSECLink} =...
+                    ADTBagMeta{iTimingTopic}{ActionChunks{iChunk}{2}};
+            end
+
+
+        end
+
+        if isempty(SEC)
+            SEC = zeros(size(SECLinks,2), size(ActionChunks,2)+1);
+        end
+
+    end        
+        
     
+    %
     % Generate SEC XML...
+    %
     if ~isempty(SEC)
         
         fprintf('Generating SEC XML.');
@@ -596,7 +701,9 @@ function varargout = adttool(BagSpec, varargin)
         fprintf('finished!\n');        
     end
     
+    %
     % Generate action chunks from SEC links...
+    %
     if ~isempty(ADTBagActionChunkMeta)
         
         fprintf('Generating action chunk XML from SECLinks.');
@@ -849,13 +956,34 @@ function varargout = adttool(BagSpec, varargin)
     % HELPER FUNCTIONS
     %------------------
 
-    function index = findtopic(TopicNames, Topic)
+    function index = findtopic(TopicNames, Topic, varargin)
+        
+        if isempty(Topic)
+            index = 0;
+            return;
+        end
+
+        % Defaults
+        cmpfunc = @strcmp;
+
+        if nargin > 2
+            switch lower(varargin{1})
+                case {'fuzzy', 'strfind'},
+                    cmpfunc = @strfind;
+                case {'exact', 'strcmpi'},
+                    cmpfunc = @strcmpi;
+                case {'exactcase', 'strcmp'}
+                    cmpfunc = @strcmp;
+
+                otherwise, cmpfnc = @strcmp;
+            end
+        end
 
         for index = 1:size(TopicNames,2)
 
             found = false;
 
-            if strcmp(TopicNames{index}, Topic)
+            if cmpfunc(TopicNames{index}, Topic)
                 found = true;
                 break;
             end
