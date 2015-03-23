@@ -9,7 +9,15 @@
 % Repository: https://barryridge@bitbucket.org/barryridge/acat-adt-generator.git
 % Please e-mail me for access.
 %
-% Description:              Demo
+% Description:              This is a demo file showing the functionality
+%                           of the ACAT ADT software in three parts:
+%                           
+%                           Part 1: Loading ROS bag files.
+%
+%                           Part 2: Using adttool to generate ADT XML.
+%
+%                           Part 3: Using the adteditor GUI.
+%                           
 %   
 % Prerequisite packages:    matlab_rosbag, xml_io_tools
 %                           (see README.md and setpaths.m for further
@@ -17,10 +25,11 @@
 %
 % Usage:                    Don't forget to change the path for the rosbag!
 
-
+% Part 1:
 % Pre-load the rosbag, topic meta-data, and topic message data...
-% [ADTBag ADTBagMeta ADTBagMsg] = loadbag('/home/barry/Research/Data/SampleROSBagRecordings/2014-11-04-14-38-49.bag');
+[ADTBag ADTBagMeta ADTBagMsg] = loadbag('/home/barry/Research/Data/SampleROSBagRecordings/2014-11-04-14-38-49.bag');
 
+% Part 2 (a):
 % Generate XML using topic SECLinks...
 XML = adttool({ADTBag, ADTBagMeta, ADTBagMsg},... % Use the pre-loaded rosbag data
               'xml', 'demotemp.xml',... % Set an output XML filename
@@ -30,7 +39,8 @@ XML = adttool({ADTBag, ADTBagMeta, ADTBagMsg},... % Use the pre-loaded rosbag da
               'seclink', '/HvsM', 'hand', 'main-object',... % Link a SEC topic to objects in the XML
               'seclink', '/MvsP', 'main-object', 'primary-object',...
               'seclink', '/MvsS', 'main-object', 'secondary-object')
-          
+
+% Part 2 (b):
 % Generate XML using topic-less SECLinks...
 % XML = adttool({ADTBag, ADTBagMeta, ADTBagMsg},... % Use the pre-loaded rosbag data
 %               'xml', 'demotemp.xml',... % Set an output XML filename
@@ -44,3 +54,7 @@ XML = adttool({ADTBag, ADTBagMeta, ADTBagMsg},... % Use the pre-loaded rosbag da
 %               'SEC', [0 1 0;...
 %                       1 0 1;...
 %                       0 0 1])
+
+% Part 2 (c):
+% Start the ADT editor GUI...
+adteditor({ADTBag, ADTBagMeta, ADTBagMsg})
