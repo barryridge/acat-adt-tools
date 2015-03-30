@@ -89,9 +89,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
     handles.Data.hTrackingLine = [];
     handles.Data.hSelection = [];
     handles.Data.hSelectionContextMenu = [];
-    handles.Data.hSelectionContextMenuItems = [];
-    handles.Data.hActionChunks = [];
-    handles.Data.hActionChunksText = [];
+    handles.Data.hSelectionContextMenuItems = [];    
     
     % Topic tree stuff...
     handles.Data.Tree = [];
@@ -107,6 +105,10 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
     
     % Action chunks...
     handles.Data.ActionChunks = [];
+    handles.Data.hActionChunks = [];
+    handles.Data.hActionChunksText = [];
+    handles.Data.hActionChunkContextMenu = [];
+    handles.Data.hActionChunkContextMenuItems = [];
     
     % Plot flags...
     handles.Data.isselectionplotted = false;
@@ -368,8 +370,18 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
                 
         % Set up selection context menu...        
         handles.Data.hSelectionContextMenu = uicontextmenu;
-        handles.Data.hSelectionContextMenuItems =...
+        handles.Data.hSelectionContextMenuItems(1) =...
             uimenu(handles.Data.hSelectionContextMenu, 'label', 'New Action Chunk');
+        
+        % Set up action chunk context menu...        
+        handles.Data.hActionChunkContextMenu = uicontextmenu;
+        handles.Data.hActionChunkContextMenuItems(1) =...
+            uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
+        
+        % Set up action chunk context menu...
+        % handles.Data.hActionContextMenu = uicontextmenu;
+        % handles.Data.hActionChunkContextMenuItems(1) =...
+        %     uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
         
         % Update handles structure
         guidata(hObject, handles);
@@ -427,8 +439,9 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 
 
     
-% Set the mouse-press callback
-% function mousePressedCallback(hTree, eventData) %,additionalVar)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% NodeMousePressed_Callback
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function NodeMousePressed_Callback(hObject, eventdata, handles)
 % if eventData.isMetaDown % right-click is like a Meta-button
 % if eventData.getClickCount==2 % how to detect double clicks
@@ -462,7 +475,9 @@ function NodeMousePressed_Callback(hObject, eventdata, handles)
     % guidata(hObject, handles);
     
     
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CheckBoxSelected_Callback 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function CheckBoxSelected_Callback( tree, ev, hObject, handles )
     
     nodes = tree.getSelectedNodes;
@@ -476,8 +491,12 @@ function CheckBoxSelected_Callback( tree, ev, hObject, handles )
         % Invert the selection...
         TempStruct.isSelected = ~TempStruct.isSelected;
         
-        handles.Data.TopicMap(topicPath) = TempStruct;
+        % Invert the plot flag...
+        TempStruct.isPlotted = ~TempStruct.isPlotted;
         
+        handles.Data.TopicMap(topicPath) = TempStruct;
+                
+        % Set plot update flag...
         handles.Data.updateplots = true;
         
         % Update handles structure
@@ -547,7 +566,9 @@ function CheckBoxSelected_Callback( tree, ev, hObject, handles )
 
     end        
 
-    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% node2path 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function path = node2path(node)
     path = node.getPath;
     for i=1:length(path);
@@ -559,7 +580,9 @@ function path = node2path(node)
       path = p{1};
     end
     
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% buildtopictree 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin)
 
     if nargin > 4
@@ -650,22 +673,32 @@ function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin
         
     end        
     
-    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% updatemainplot 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles)   
-
+    
     % MsgMat = cell2mat(handles.Data.ADTBagMsg);
     % MetaMat = cell2mat(handles.Data.ADTBagMeta);
 
     % handles.Data.TopicData{1}.position = [MsgMat.position];
     % handles.Data.TopicData{1}.orientation = [MsgMat.orientation];
     % handles.Data.TopicData{1}.time = [MetaMat.time];
-        
+    
+    %
+    % Clear the axes if necessary...
+    %
+    if handles.Data.updateplots
+        cla(handles.MainAxes);
+    end
+    
     %
     % Plot a green selection box...
-    %            
-    if handles.Data.CurrentLeftButtonState == handles.Data.LeftButtonStates.INMOTION
-        
-        if handles.Data.isselectionplotted
+    %   
+    if handles.Data.CurrentLeftButtonState == handles.Data.LeftButtonStates.INMOTION &&...
+       handles.Data.LastLeftButtonState ~= handles.Data.LeftButtonStates.UP
+                
+        if handles.Data.isselectionplotted && ishandle(handles.Data.hSelection)
             delete(handles.Data.hSelection);
             handles.Data.isselectionplotted = false;            
         end
@@ -680,32 +713,24 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
         x_2 = round(handles.Data.CurrentPoint(1));
         y_2 = handles.Data.mainAxesMaxY;        
         
-        % handles.Data.hSelection =...
-        %     patch([x_1 x_2 x_2 x_1],...
-        %           [y_1 y_1 y_2 y_2],...
-        %           'g', 'FaceAlpha', 0.5,...
-        %           'Parent', handles.MainAxes);
         handles.Data.hSelection =...
             patch([x_1 x_2 x_2 x_1],...
                   [y_1 y_1 y_2 y_2],...
                   [0 0.75 0],...
                   'Parent', handles.MainAxes);
-        % handles.Data.hSelection =...
-        %     rectangle('Position', [x_1, y_1, x_2-x_1, y_2-y_1],...
-        %               'FaceColor', 'g',...
-        %               'Parent', handles.MainAxes);        
+        
+        uistack(handles.Data.hSelection, 'bottom');        
         
         % Record the selection info...
         handles.Data.Selection = [x_1, x_2];        
         handles.Data.isselectionplotted = true;                                               
         
-    end
-            
-
+    end            
+    
     %
     % Plot selected topic data...
     %
-    if handles.Data.updateplots
+    if handles.Data.updateplots                
         
         if ~isempty(handles.Data.TopicMap)
             
@@ -735,14 +760,31 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
                     handles.Data.mainAxesMaxY =...
                         max(handles.Data.mainAxesMaxY,...
                             max(handles.Data.TopicMap(topicKeyArray{iKey}).dataArray));
-                        
+                    
                     axis(handles.MainAxes,...
                          [0 handles.Data.mainAxesMaxX...
                           handles.Data.mainAxesMinY handles.Data.mainAxesMaxY]);
+
+                    % axis tight;
                     
                     % hold on;
                     
                     handles.Data.TopicMap(topicKeyArray{iKey}) = TempStruct;
+                    
+                else
+                    
+                    % TempStruct = handles.Data.TopicMap(topicKeyArray{iKey});
+                                        
+                    % delete(TempStruct.hTopicPlot);
+                    % TempStruct.hTopicPlot = [];
+                    
+                    if isgraphics(handles.Data.TopicMap(topicKeyArray{iKey}).hTopicPlot)                        
+                        delete(handles.Data.TopicMap(topicKeyArray{iKey}).hTopicPlot);
+                    end
+                    
+                    % axis tight;
+                    
+                    % handles.Data.TopicMap(topicKeyArray{iKey}) = TempStruct;
 
                 end
 
@@ -750,39 +792,11 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
                         
         end
         
-        handles.Data.updateplots = false;
+        handles.Data.updateplots = false;                                
         
-    else        
-        
-        if ~isempty(handles.Data.TopicMap)
-            
-            topicKeyArray = handles.Data.TopicMap.keys;
-
-            % Loop through each selected checked sub-topic as listed in the
-            % topic hash table...
-            for iKey = 1:length(topicKeyArray)
-                
-                % Move plot lines to top of stack...
-                uistack(handles.Data.TopicMap(topicKeyArray{iKey}).hTopicPlot, 'top');                
-                
-            end            
-        end                    
-        
-    end
-        
-    %
-    % Raise action chunk labels to top...
-    %
-    if ~isempty(handles.Data.hActionChunksText)
-            
-        for iTextBox = 1:length(handles.Data.hActionChunksText)
-
-            % Move plot lines to top of stack...
-            uistack(handles.Data.hActionChunksText{iTextBox}, 'top');
-
-        end            
     end
     
+        
     %
     % Plot a blue vertical timestep tracking line...
     %
@@ -791,9 +805,9 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
         
         % fprintf('DEBUG: Plotting a blue vertical timestep tracking line...\n');
         
-        if handles.Data.isselectionplotted
+        if handles.Data.isselectionplotted && ishandle(handles.Data.hSelection)
             delete(handles.Data.hSelection);
-            handles.Data.isselectionplotted = false;            
+            handles.Data.isselectionplotted = false;
         end
        
         if handles.Data.istrackinglineplotted
@@ -812,22 +826,16 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
               
         handles.Data.istrackinglineplotted = true;        
     end
-        
+                
     % drawnow;
     
     % Update handles structure
     guidata(hObject, handles);
     
-    %
-    % If a selection box has been plotted, attach the context menu after
-    % updating the handles structure...
-    %
-    if handles.Data.isselectionplotted                
-        set(handles.Data.hSelection, 'uicontextMenu', handles.Data.hSelectionContextMenu);        
-        set(handles.Data.hSelectionContextMenuItems(1),'callback', {@NewActionChunk_Callback, guidata(hObject)});
-    end        
     
-    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% updatecameraimage 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles)
 
     %
@@ -869,12 +877,15 @@ function [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, h
     Image = imrotate(Image, 90);               
     % figure(handles.hImage);
     imshow(Image, 'Parent', handles.hImageAxes);
-    drawnow;
+    % drawnow;
     
     % Update handles structure
     guidata(hObject, handles);
 
-    
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% updatedepthimage 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles)
     
     %cm
@@ -907,7 +918,7 @@ function [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, ha
     DepthImage = imrotate(DepthImage, 90);
     % figure(handles.hDepthImage);
     imagesc(DepthImage, 'Parent', handles.hDepthImageAxes);
-    drawnow;
+    % drawnow;
     
     % Update handles structure
     guidata(hObject, handles);
@@ -988,7 +999,7 @@ function NewActionChunk_Callback(hObject, eventdata, handles)
             patch(XData,...
                   YData,...
                   [0 0 0.75],...                 
-                  'Parent', handles.MainAxes);     
+                  'Parent', handles.MainAxes);                           
               
         XData = sort(XData(1:2));
               
@@ -1003,24 +1014,49 @@ function NewActionChunk_Callback(hObject, eventdata, handles)
                  'editing', 'on');
                      
         settexttoediting = @(~, ~) set(handles.Data.hActionChunksText{end}, 'editing', 'on');
-        set(handles.Data.hActionChunksText{end}, 'buttondownfcn', settexttoediting);
+        set(handles.Data.hActionChunksText{end}, 'buttondownfcn', settexttoediting);                
 
         % Send the blue action chunk to the bottom of the draw stack...
-        uistack(handles.Data.hActionChunks{end}, 'bottom');                
+        uistack(handles.Data.hActionChunks{end}, 'bottom');      
+        
+        % Send the action chunk text to the top of the draw stack...
+        uistack(handles.Data.hActionChunksText{end}, 'top');
         
         % Create a new action chunk...
         % handles.Data.ActionChunks{end+1}.iStartFrame = handles.
+        
+        % Update handles structure
+        guidata(hObject, handles);
+                      
+        % Attach a context menu...        
+        set(handles.Data.hActionChunks{end}, 'uicontextMenu', handles.Data.hActionChunkContextMenu);
+        set(handles.Data.hActionChunkContextMenuItems(1),'callback',...
+            {@DeleteActionChunk_Callback, guidata(hObject), size(handles.Data.hActionChunks,2)});
         
     end
     
     % Update handles structure
     guidata(hObject, handles);
     
+    
+% --- Executes on selection of New Action Chunk context menu item.
+function DeleteActionChunk_Callback(hObject, eventdata, handles, iActionChunk)
 
-%% ----------------
-% HELPER FUNCTIONS
-%------------------
-
+    % Delete the action chunk...
+    delete(handles.Data.hActionChunks{iActionChunk});
+    handles.Data.hActionChunks(iActionChunk) = [];
+    
+    % Delete the action chunk text...
+    delete(handles.Data.hActionChunksText{iActionChunk});
+    handles.Data.hActionChunksText(iActionChunk) = [];
+    
+    % Update handles structure
+    guidata(hObject, handles);
+    
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% findtopic 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function index = findtopic(TopicNames, Topic, varargin)
 
     % Defaults
@@ -1054,7 +1090,9 @@ function index = findtopic(TopicNames, Topic, varargin)
 
     end
     
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% checkedIcon 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [I,map] = checkedIcon()
     I = uint8(...
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0;
@@ -1082,7 +1120,9 @@ function [I,map] = checkedIcon()
            0,0,0;
            0,0,0];
 
-       
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% uncheckedIcon 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [I,map] = uncheckedIcon()
     I = uint8(...
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1;
@@ -1111,7 +1151,9 @@ function [I,map] = uncheckedIcon()
          0,0,0;
          0,0,0];
      
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% deletefigures 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function deletefigures(hObject, eventdata, handles)
 
     delete(handles.hImageFig);
@@ -1155,7 +1197,7 @@ function MainFig_ButtonMotionFcn(hObject, eventdata, handles)
 % hObject    handle to MainAxes (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
+    
     % Set flags...
     handles.Data.LastLeftButtonState = handles.Data.CurrentLeftButtonState;
     handles.Data.CurrentLeftButtonState = handles.Data.LeftButtonStates.INMOTION;
@@ -1175,11 +1217,11 @@ function MainFig_ButtonMotionFcn(hObject, eventdata, handles)
     %     handles.Data.currenttimestep =...
     %         handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;   
     % end
-    
+        
     [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);
 
     % Update handles structure
-    guidata(hObject, handles);
+    guidata(hObject, handles);    
 
     
 % --- Executes on mouse release over axes background.
@@ -1188,32 +1230,45 @@ function MainFig_ButtonUpFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+
+    % if handles.Data.LastLeftButtonState == handles.Data.LeftButtonStates.INMOTION                
+
+        % fprintf('UP: LastLeftButtonState = %d, CurrentLeftButtonState = %d\n',...
+        %         handles.Data.LastLeftButtonState,...
+        %         handles.Data.CurrentLeftButtonState);
+
+        % Get mouse click location...
+        handles.Data.CurrentPoint = get(handles.MainAxes, 'currentpoint');      
+
+        % Update current frame from click location and time step from bag...
+        handles.Data.iCurrentFrame = round(handles.Data.CurrentPoint(1,1));
+        handles.Data.currenttimestep =...
+            handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
+
+        [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);    
+
+        [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);    
+
+        % Unset button-motion callback...
+        set(handles.MainFig, 'WindowButtonMotionFcn', '');               
+        
+    % end
+    
+    %
+    % If a selection box has been plotted, attach the context menu after
+    % updating the handles structure...
+    %
+    if handles.Data.isselectionplotted && ishandle(handles.Data.hSelection)
+        set(handles.Data.hSelection, 'uicontextMenu', handles.Data.hSelectionContextMenu);
+        set(handles.Data.hSelectionContextMenuItems(1),'callback', {@NewActionChunk_Callback, guidata(hObject)});        
+    end
+    
     % Set flags...
     handles.Data.LastLeftButtonState = handles.Data.CurrentLeftButtonState;
     handles.Data.CurrentLeftButtonState = handles.Data.LeftButtonStates.UP;
     
-    % fprintf('UP: LastLeftButtonState = %d, CurrentLeftButtonState = %d\n',...
-    %         handles.Data.LastLeftButtonState,...
-    %         handles.Data.CurrentLeftButtonState);
-
-    % Get mouse click location...
-    handles.Data.CurrentPoint = get(handles.MainAxes, 'currentpoint');
-    
-    % Update current frame from click location and time step from bag...
-    handles.Data.iCurrentFrame = round(handles.Data.CurrentPoint(1,1));
-    handles.Data.currenttimestep =...
-        handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
-        
-    [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);    
-    
-    [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);    
-    
-    % Unset button-motion callback...
-    set(handles.MainFig, 'WindowButtonMotionFcn', '');
-
     % Update handles structure
     guidata(hObject, handles);
-    
     
 
 
