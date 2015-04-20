@@ -22,7 +22,7 @@ function varargout = adteditor(varargin)
 
 % Edit the above text to modify the response to help adteditor
 
-% Last Modified by GUIDE v2.5 19-Mar-2015 15:13:38
+% Last Modified by GUIDE v2.5 16-Apr-2015 15:41:30
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -65,7 +65,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
     handles.Data.BagDirName = [];
     handles.Data.XMLDirName = [];
     handles.Data.BagFileName = [];
-    handles.Data.XMLFileName = 'output.xml';
+    handles.Data.XMLFileName = [];
 
     % rosbag variables. Stored in handles.
     handles.Data.ADTBag = [];
@@ -79,6 +79,10 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
     handles.Data.ADTBagTopicStrings = [];
     handles.Data.ADTBagTopicTypes = [];
     
+    % Topic indices...
+    handles.Data.iRGBTopic = 0;
+    handles.Data.iDepthTopic = 0;    
+    
     % Currently loaded topics...
     handles.Data.TopicData = {};
     handles.Data.TopicMap = [];
@@ -89,7 +93,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
     handles.Data.hTrackingLine = [];
     handles.Data.hSelection = [];
     handles.Data.hSelectionContextMenu = [];
-    handles.Data.hSelectionContextMenuItems = [];    
+    handles.Data.hSelectionContextMenuItems = [];
     
     % Topic tree stuff...
     handles.Data.Tree = [];
@@ -105,10 +109,14 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
     
     % Action chunks...
     handles.Data.ActionChunks = [];
+    handles.Data.ActionChunkNames = [];
     handles.Data.hActionChunks = [];
     handles.Data.hActionChunksText = [];
     handles.Data.hActionChunkContextMenu = [];
     handles.Data.hActionChunkContextMenuItems = [];
+    
+    % SEC...
+    handles.Data.SECButtons = [];
     
     % Plot flags...
     handles.Data.isselectionplotted = false;
@@ -151,7 +159,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
             
             % Get the directory name...
             [Pathstr, Name, Ext] = fileparts(BagSpec);
-            handles.Data.BagDirName = [Pathstr '/' Name];
+            handles.Data.BagDirName = fullfile(Pathstr, Name);
             
             % Find the bag file...                        
             BagFileNames = dir([BagDirName '/*.bag']);            
@@ -216,7 +224,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         if ~isempty(BagFileName)
 
             fprintf('Loading rosbag file...');
-            handles.Data.ADTBag = ros.ADTBag.load([BagDirName '/' BagFileName]);
+            handles.Data.ADTBag = ros.ADTBag.load(fullfile(BagDirName, BagFileName));
             fprintf('finished!\n');
 
         else
@@ -278,17 +286,23 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         handles.Data.currenttimestep =...
             handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
         
-        [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);
+        [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);                
         
-        handles.hImageFig = figure;
-        handles.hImageAxes = axes;
+        handles.Data.iRGBTopic = findtopic(handles.Data.ADTBagTopicNames, 'rgb/image_color', 'fuzzy');
         
-        [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);
+        if handles.Data.iRGBTopic ~= 0
+            handles.hImageFig = figure;
+            handles.hImageAxes = axes;
+            [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);
+        end                
         
-        handles.hDepthImageFig = figure;
-        handles.hDepthImageAxes = axes;
+        handles.Data.iDepthTopic = findtopic(handles.Data.ADTBagTopicNames, 'depth_registered/image_raw', 'fuzzy');
                         
-        [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);
+        if handles.Data.iDepthTopic ~= 0
+            handles.hDepthImageFig = figure;
+            handles.hDepthImageAxes = axes;
+            [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);
+        end
         
         %
         % Focus and hold main figure axes...
@@ -365,6 +379,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         [handles.Data.hTree, handles.Data.hTreeContainer] =...
             uitree('v0', 'Root', handles.Data.Tree);
         handles.Data.hTree.setModel( handles.Data.TreeModel );
+        handles.Data.hTree.MultipleSelectionEnabled = true;
         % we often rely on the underlying java tree
         handles.Data.hJTree = handle(handles.Data.hTree.getTree, 'CallbackProperties');
                 
@@ -387,14 +402,20 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         guidata(hObject, handles);
         
         % set(handles.Data.Tree, 'Units', 'normalized', 'position', [0 0 1 0.5]);
-        % set(handles.Data.hTree, 'NodeSelectedCallback', @(hObject,eventdata)adteditor('CheckBoxSelected_Callback',hObject,eventdata,guidata(hObject)) );
+        % set(tree, 'NodeSelectedCallback', @selected_cb );
+        % function selected_cb( tree, ev )
         set(handles.Data.hTree,'NodeSelectedCallback', {@CheckBoxSelected_Callback, hObject, guidata(hObject)});
+        % set(handles.Data.hTree, 'NodeSelectedCallback', @(hObject,eventdata)adteditor('CheckBoxSelected_Callback', hObject, guidata(hObject)) );
 
         % make root the initially selected node
         % handles.Data.hTree.setSelectedNode(handles.Data.Tree);
         
-        % MousePressedCallback is not supported by the uitree, but by jtree        
+        % MousePressedCallback is not supported by the uitree, but by jtree
+        % set(jtree, 'MousePressedCallback', @mousePressedCallback);
+        % function mousePressedCallback(hTree, eventData) %,additionalVar)
         % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject,eventdata)adteditor('NodeMousePressed_Callback',hObject,eventdata,guidata(hObject)));
+        % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject)adteditor('NodeMousePressed_Callback', guidata(hObject)));
+        % set(handles.Data.hJTree, 'MousePressedCallback', @(handles.Data.hTree, eventdata)adteditor('NodeMousePressed_Callback', handles.Data.hTree, eventdata));
         set(handles.Data.hJTree,'MousePressedCallback', {@NodeMousePressed_Callback, guidata(hObject)});
                                 
         % figure(handles.MainFig, 'pos',[300,300,150,150]);
@@ -442,6 +463,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % NodeMousePressed_Callback
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% function NodeMousePressed_Callback(hObject, eventdata)
 function NodeMousePressed_Callback(hObject, eventdata, handles)
 % if eventData.isMetaDown % right-click is like a Meta-button
 % if eventData.getClickCount==2 % how to detect double clicks
@@ -478,7 +500,8 @@ function NodeMousePressed_Callback(hObject, eventdata, handles)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % CheckBoxSelected_Callback 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function CheckBoxSelected_Callback( tree, ev, hObject, handles )
+% function CheckBoxSelected_Callback( tree, ev, handles )
+function CheckBoxSelected_Callback( tree, ev, hObject, handles)
     
     nodes = tree.getSelectedNodes;
     node = nodes(1);
@@ -564,7 +587,11 @@ function CheckBoxSelected_Callback( tree, ev, hObject, handles )
             
         end
 
-    end        
+    end
+    
+    
+    % Update handles structure
+    guidata(hObject, handles);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % node2path 
@@ -842,15 +869,12 @@ function [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, h
     % Read and plot the camera image...
     %
     % It uses BGR8 encoding.
-    % 
-    iRGBTopic = findtopic(handles.Data.ADTBagTopicNames, 'rgb/image_color', 'fuzzy');
-    % handles.Data.ADTBagTopicViews{iRGBTopic} = handles.Data.ADTBag.resetView(handles.Data.ADTBagTopicNames{iRGBTopic});
-    % [Msg Meta] = handles.Data.ADTBagTopicViews{iRGBTopic}.read();
+    %     
     
     % Search for the right frame in the topic based on current timestep.
     iRGBTopicFrame = 0;
-    for iFrame = 1:size(handles.Data.ADTBagMeta{iRGBTopic}, 2)
-        if handles.Data.ADTBagMeta{iRGBTopic}{iFrame}.time.time >=...
+    for iFrame = 1:size(handles.Data.ADTBagMeta{handles.Data.iRGBTopic}, 2)
+        if handles.Data.ADTBagMeta{handles.Data.iRGBTopic}{iFrame}.time.time >=...
             handles.Data.currenttimestep....
                 && ~iRGBTopicFrame
             iRGBTopicFrame = iFrame;  
@@ -858,8 +882,8 @@ function [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, h
         end       
     end
     
-    Msg = handles.Data.ADTBagMsg{iRGBTopic}{iRGBTopicFrame};
-    Meta = handles.Data.ADTBagMeta{iRGBTopic}{iRGBTopicFrame};
+    Msg = handles.Data.ADTBagMsg{handles.Data.iRGBTopic}{iRGBTopicFrame};
+    Meta = handles.Data.ADTBagMeta{handles.Data.iRGBTopic}{iRGBTopicFrame};
     %Convert data type
     ImageData = typecast(Msg.data,'uint8');
     % ImageData = Msg{1}.data;
@@ -888,20 +912,16 @@ function [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, h
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles)
     
-    %cm
+    %
     % Read and plot the depth image...
     %
     % It uses 16UC1 encoding.
-    %
-    % [Msg Meta] = handles.Data.ADTBagTopicViews{iDepthTopic}.read();
-    iDepthTopic = findtopic(handles.Data.ADTBagTopicNames, 'depth_registered/image_raw', 'fuzzy');
-    % handles.Data.ADTBagTopicViews{iDepthTopic} = handles.Data.ADTBag.resetView(handles.Data.ADTBagTopicNames{iDepthTopic});
-    % [Msg Meta] = handles.Data.ADTBagTopicViews{iDepthTopic}.read();
+    %    
     
     % Search for the right frame in the topic based on current timestep.
     iDepthTopicFrame = 0;
-    for iFrame = 1:size(handles.Data.ADTBagMeta{iDepthTopic}, 2)
-        if handles.Data.ADTBagMeta{iDepthTopic}{iFrame}.time.time >=...
+    for iFrame = 1:size(handles.Data.ADTBagMeta{handles.Data.iDepthTopic}, 2)
+        if handles.Data.ADTBagMeta{handles.Data.iDepthTopic}{iFrame}.time.time >=...
             handles.Data.currenttimestep....
                 && ~iDepthTopicFrame
             iDepthTopicFrame = iFrame;  
@@ -909,8 +929,8 @@ function [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, ha
         end       
     end
     
-    Msg = handles.Data.ADTBagMsg{iDepthTopic}{iDepthTopicFrame};
-    Meta = handles.Data.ADTBagMeta{iDepthTopic}{iDepthTopicFrame};
+    Msg = handles.Data.ADTBagMsg{handles.Data.iDepthTopic}{iDepthTopicFrame};
+    Meta = handles.Data.ADTBagMeta{handles.Data.iDepthTopic}{iDepthTopicFrame};
     % DepthIndices = 1 : 2 : (Msg{1}.width * Msg{1}.height * 2);
     % DepthImage = reshape(Msg{1}.data(DepthIndices), Msg{1}.width, Msg{1}.height);
     DepthImage = reshape(typecast(Msg.data,'uint16'), Msg.width, Msg.height);
@@ -923,6 +943,39 @@ function [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, ha
     % Update handles structure
     guidata(hObject, handles);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% updatesecpanel
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles)
+
+    % Delete previous SEC panel radio buttons...
+    if ~isempty(handles.Data.SECButtons)
+        delete(handles.Data.SECButtons);
+    else
+        SECButtons = get(handles.SECPanel, 'Children');
+        delete(SECButtons)
+    end
+    
+    set(handles.SECPanel, 'Units', 'Pixels');
+    SECPanelPos = get(handles.SECPanel, 'Position');
+            
+    % Add SEC radio buttons to panel...
+    for iRow = 1:size(get(handles.SECLink_Topic_ListBox, 'String'),1)        
+        if ~isempty(handles.Data.hActionChunks)            
+            for iCol = 1:size(handles.Data.hActionChunks,2)+1
+                
+                handles.Data.SECButtons(iRow, iCol) =...
+                    uicontrol(handles.SECPanel,...
+                              'style','checkbox',...
+                              'unit','pix',...
+                              'position',[iCol*20, (SECPanelPos(4)-40) - ((iRow-1) * 16), 15, 15,]);
+                      
+            end
+        end
+    end
+    
+    % Update handles structure
+    guidata(hObject, handles);
 
 % --- Outputs from this function are returned to the command line.
 function varargout = adteditor_OutputFcn(hObject, eventdata, handles) 
@@ -988,7 +1041,7 @@ function NewActionChunk_Callback(hObject, eventdata, handles)
         
         % Grab new action chunk info...
         XData = get(handles.Data.hSelection, 'XData');
-        YData = get(handles.Data.hSelection, 'YData');                
+        YData = get(handles.Data.hSelection, 'YData');
         
         % Delete green selection box...
         delete(handles.Data.hSelection);
@@ -999,7 +1052,7 @@ function NewActionChunk_Callback(hObject, eventdata, handles)
             patch(XData,...
                   YData,...
                   [0 0 0.75],...                 
-                  'Parent', handles.MainAxes);                           
+                  'Parent', handles.MainAxes);
               
         XData = sort(XData(1:2));
               
@@ -1027,11 +1080,17 @@ function NewActionChunk_Callback(hObject, eventdata, handles)
         
         % Update handles structure
         guidata(hObject, handles);
-                      
+        
         % Attach a context menu...        
         set(handles.Data.hActionChunks{end}, 'uicontextMenu', handles.Data.hActionChunkContextMenu);
         set(handles.Data.hActionChunkContextMenuItems(1),'callback',...
             {@DeleteActionChunk_Callback, guidata(hObject), size(handles.Data.hActionChunks,2)});
+        
+        % Update handles structure
+        guidata(hObject, handles);                              
+        
+        % Update the SEC button panel...
+        [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles);
         
     end
     
@@ -1049,6 +1108,12 @@ function DeleteActionChunk_Callback(hObject, eventdata, handles, iActionChunk)
     % Delete the action chunk text...
     delete(handles.Data.hActionChunksText{iActionChunk});
     handles.Data.hActionChunksText(iActionChunk) = [];
+    
+    % Update handles structure
+    guidata(hObject, handles);
+    
+    % Update the SEC button panel...
+    [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles);
     
     % Update handles structure
     guidata(hObject, handles);
@@ -1245,9 +1310,13 @@ function MainFig_ButtonUpFcn(hObject, eventdata, handles)
         handles.Data.currenttimestep =...
             handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
 
-        [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);    
+        if handles.Data.iRGBTopic ~= 0
+            [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);    
+        end
 
-        [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);    
+        if handles.Data.iDepthTopic ~= 0
+            [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);    
+        end
 
         % Unset button-motion callback...
         set(handles.MainFig, 'WindowButtonMotionFcn', '');               
@@ -1296,7 +1365,7 @@ function generatexmlbutton_Callback(hObject, eventdata, handles)
     SECLinkFirstObjs = get(handles.SECLink_FirstObj_ListBox, 'string');
     SECLinkSecondObjs = get(handles.SECLink_SecondObj_ListBox, 'string');
     
-    TestString = '''seclink'', [], ''hand'', ''main-object'''
+    % TestString = '''seclink'', [], ''hand'', ''main-object'''
     
     SECLinkArgString = [];
     for iSECLink = 1:size(SECLinkTopics,1)
@@ -1541,7 +1610,10 @@ function SECLink_Add_Button_Callback(hObject, eventdata, handles)
     iValue = Foo{2};
     Bar = get(handles.SECLink_SecondObj_TextBox, {'string', 'value'});    
     Values{end+1} = Bar{1};
-    set(handles.SECLink_SecondObj_ListBox, 'string', Values, 'value', iValue+1);
+    set(handles.SECLink_SecondObj_ListBox, 'string', Values, 'value', iValue+1);        
+    
+    % Update the SEC button panel...
+    [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles);
     
     % Update handles structure
     guidata(hObject, handles);
@@ -1579,6 +1651,137 @@ function SECLink_Delete_Button_Callback(hObject, eventdata, handles)
         Values(iValue) = [];
         set(handles.SECLink_SecondObj_ListBox, 'string', Values, 'value', iValue-1);
     end
+    
+    % Update the SEC button panel...
+    [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles);
 
     % Update handles structure
     guidata(hObject, handles);
+
+
+% --------------------------------------------------------------------
+function FileMenu_Callback(hObject, eventdata, handles)
+% hObject    handle to FileMenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --------------------------------------------------------------------
+function SaveMenuItem_Callback(hObject, eventdata, handles)
+% hObject    handle to SaveMenuItem (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+    % Pull up a file selection menu...
+    if isempty(handles.Data.XMLFileName)        
+        
+        [XMLFileName,PathName,FilterIndex] =...
+            uiputfile({'*.xml'; '*.txt'}, 'Export ADT XML', 'output.xml');
+        
+        if XMLFileName ~= 0
+            handles.Data.XMLFileName = fullfile(PathName, XMLFileName);
+        end
+    end
+
+    % ...and if we get a valid filename, try to generate and SaveMenuItem the XML.
+    if ~isempty(handles.Data.XMLFileName)
+        
+        % Build action chunks cell array for adttool...
+        for iChunk = 1:size(handles.Data.hActionChunks,2)
+
+            XData = get(handles.Data.hActionChunks{iChunk}, 'XData');
+            XData = sort(XData(1:2));        
+
+            handles.Data.ActionChunks{iChunk}{1} = XData(1);
+            handles.Data.ActionChunks{iChunk}{2} = XData(2);
+
+        end
+        
+        % Build action chunk descriptions cell array...
+        for iChunk = 1:size(handles.Data.hActionChunksText,2)
+            handles.Data.ActionChunkNames{iChunk} = get(handles.Data.hActionChunksText{iChunk}, 'String');
+        end
+
+        % Build SECLink arg string...
+        SECLinkTopics = get(handles.SECLink_Topic_ListBox, 'string');
+        SECLinkFirstObjs = get(handles.SECLink_FirstObj_ListBox, 'string');
+        SECLinkSecondObjs = get(handles.SECLink_SecondObj_ListBox, 'string');
+
+        SECLinkArgString = [];
+        for iSECLink = 1:size(SECLinkTopics,1)
+            SECLinkArgString = [SECLinkArgString 'seclink '];
+
+            if strcmp(SECLinkTopics{iSECLink}, 'None')
+                SECLinkArgString = [SECLinkArgString '[] '];
+            else
+                SECLinkArgString = [SECLinkArgString ' ' SECLinkTopics{iSECLink} ' '];
+            end
+
+            SECLinkArgString = [SECLinkArgString ' ' SECLinkFirstObjs{iSECLink} ' '];
+            SECLinkArgString = [SECLinkArgString ' ' SECLinkSecondObjs{iSECLink} ' '];
+        end
+        % SECLinkArgString(end-1:end) = [];
+        SECLinkArgs = strread(SECLinkArgString, '%s');
+        
+        % Build SEC args...
+        if ~isempty(handles.Data.SECButtons)
+            for iRow = 1:size(handles.Data.SECButtons,1)
+                for iCol = 1:size(handles.Data.SECButtons,2)
+                    SEC(iRow, iCol) = get(handles.Data.SECButtons(iRow,iCol), 'Value');
+                end
+            end
+        end
+        
+        % Build up argument list...
+        Args = {'xml', handles.Data.XMLFileName};
+        
+        if ~isempty(SECLinkArgs)
+            Args = {Args{:} SECLinkArgs{:}};
+        end
+        
+        if ~isempty(handles.Data.ActionChunks)
+            Args = {Args{:} 'actionchunks' handles.Data.ActionChunks};
+        end
+        
+        if ~isempty(handles.Data.ActionChunkNames)
+            Args = {Args{:} 'actionchunknames' handles.Data.ActionChunkNames};
+        end
+        
+        if ~isempty(handles.Data.SECButtons)
+            Args = {Args{:} 'SEC' SEC};
+        end
+        
+        % Pass everything to adttool...
+        handles.Data.XML = adttool({handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg},...
+                                   Args{:});       
+        
+    end
+                               
+    % Update handles structure
+    guidata(hObject, handles);
+
+
+% --------------------------------------------------------------------
+function SaveAsMenuItem_Callback(hObject, eventdata, handles)
+% hObject    handle to SaveAsMenuItem (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+    % Clear the XML file name...
+    handles.Data.XMLFileName = [];
+    
+    % Update handles structure
+    guidata(hObject, handles);
+    
+    % Call the original save menu item callback, which will now re-trigger
+    % the file selection dialogue...
+    SaveMenuItem_Callback(hObject, eventdata, handles)
+
+
+% --- Executes during object creation, after setting all properties.
+function SECPanel_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to SECPanel (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called    
+              
+              

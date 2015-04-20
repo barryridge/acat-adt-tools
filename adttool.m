@@ -73,7 +73,7 @@ function varargout = adttool(BagSpec, varargin)
 %
 %       'ActionChunks', ActionChunks:
 %
-%                           ActionChunks is an N x D-1 cell-array used for
+%                           ActionChunks is an 1 x D-1 cell-array used for
 %                           manual specification of action chunks or
 %                           specification via the ADT GUI editor.
 %                           Action chunks are specified with start and end
@@ -82,6 +82,13 @@ function varargout = adttool(BagSpec, varargin)
 %                           timestep 1 and finishing at timestep 100, and
 %                           starting at timestep 200 and finishing at
 %                           timestep 300, respectively.
+%
+%       'ActionChunkNames', ActionChunkNames:
+%
+%                           ActionChunkNames is an 1 x D-1 cell-array of
+%                           strings used to specify the descriptions of
+%                           the action chunks.
+%
 %
 %       'TimingTopic', Topic:
 %
@@ -95,9 +102,14 @@ function varargout = adttool(BagSpec, varargin)
 %                           'Set', 'main-object.name', 'Jar'
 %                           'Set', 'main-object.cad-model.cad-model.uri',
 %                           'my_jar_model.pcd'.
-%                           All such 'sets' are applied towards at the end
+%                           All such 'sets' are applied at the end
 %                           of XML processing, after XML files have been
 %                           read or generated.
+%
+%       'Comments', Value:
+%                           
+%                           Switch comment generation on/off.  true/false.
+%                           Defaults to false.
 %
 % Output Arguments:
 %
@@ -143,11 +155,15 @@ function varargout = adttool(BagSpec, varargin)
     ADTBagActionChunkMeta = [];    
     SECObjTab = [];
     ActionChunks = {};
+    ActionChunkNames = {};
     TimingTopic = [];
     iTimingTopic = 0;
     
     % 'set' list...
     SetList = [];
+    
+    % Comment generation...
+    generatecomments = false;
     
     
     %% -------------------------
@@ -279,6 +295,9 @@ function varargout = adttool(BagSpec, varargin)
             case {'actionchunks', 'action_chunks', 'action-chunks'},
                 i=i+1; if iscell(varargin{i}) ActionChunks = varargin{i}; else argok = 0; end
                 
+            case {'actionchunknames', 'action_chunk_names', 'action-chunks-names'},
+                i=i+1; if iscell(varargin{i}) ActionChunkNames = varargin{i}; else argok = 0; end
+                
             case {'sec'},
                 i=i+1; if isnumeric(varargin{i}) SEC = varargin{i}; else argok = 0; end
                 
@@ -288,6 +307,9 @@ function varargout = adttool(BagSpec, varargin)
             case {'set'},
                 i=i+1; if ischar(varargin{i}) SetList{end+1}.Node = varargin{i}; else argok = 0; end
                 i=i+1; if ischar(varargin{i}) SetList{end}.Value = varargin{i}; else argok = 0; end
+                
+            case {'comments', 'commentgen', 'gencomments', 'commentgeneration', 'generatecomments'},
+                i=i+1; if islogical(varargin{i}) generatecomments = varargin{i}; else argok = 0; end
                 
             otherwise, argok = 0;
         end
@@ -417,17 +439,25 @@ function varargout = adttool(BagSpec, varargin)
 
             % Actual XML starts here...        
             XMLRootName = 'action_DASH_primitive';
-
-            XML.instruction.COMMENT = 'Instruction of an action';
+            
+            if generatecomments
+                XML.instruction.COMMENT = 'Instruction of an action';
+            end
             XML.instruction.CONTENT = 'ADT instruction text';
 
-            XML.action_DASH_context.COMMENT = 'Description of the instruction in more detail';
+            if generatecomments
+                XML.action_DASH_context.COMMENT = 'Description of the instruction in more detail';
+            end
             XML.action_DASH_context.CONTENT = 'ADT context text';
 
-            XML.name.COMMENT = 'Name of the action (e.g., PickAndPlace, Push, Unscrew, Open, Close, etc.)';
+            if generatecomments
+                XML.name.COMMENT = 'Name of the action (e.g., PickAndPlace, Push, Unscrew, Open, Close, etc.)';
+            end
             XML.name.CONTENT = 'ADT name';
 
-            XML.refframe.COMMENT = 'Reference frame of the  setup. We describe everything with respect to robot base frame. Robot based is 0,0,0 (x,y,z)';
+            if generatecomments
+                XML.refframe.COMMENT = 'Reference frame of the  setup. We describe everything with respect to robot base frame. Robot based is 0,0,0 (x,y,z)';
+            end
             XML.refframe.CONTENT = 'ADT reference frame';
 
             % Main object
@@ -435,55 +465,255 @@ function varargout = adttool(BagSpec, varargin)
             % NOTE: How much of this boilerplate is really necessary for a
             % first-time ADT?
             %
-            XML.main_DASH_object.name.COMMENT = 'Name of the object';
+            if generatecomments
+                XML.main_DASH_object.name.COMMENT = 'Name of the object';
+            end
             XML.main_DASH_object.name.CONTENT = 'Main object name';
-            XML.main_DASH_object.cad_DASH_model.COMMENT = 'Model/models of the object, can have formats 3ds, obj, stl, pcd';
-            XML.main_DASH_object.cad_DASH_model.uri.COMMENT = 'Point cloud model of the object';
-            XML.main_DASH_object.cad_DASH_model.uri.CONTENT = {'xxx.3ds' 'xxx.obj' 'xxx.stl' 'xxx.pcd'};
-            XML.main_DASH_object.part_DASH_graph.COMMENT = 'Part-graph of the object';
-            XML.main_DASH_object.part_DASH_graph.uri.COMMENT = ' (labelled point cloud) ';
-            XML.main_DASH_object.part_DASH_graph.uri.CONTENT = 'xxx.pcd';
-            XML.main_DASH_object.potential_DASH_objects.COMMENT =...
-                ['In the following we describe all potential objects. '...
-                'E.g, if we are interested in a jar we need to describe '... 
-                'all the jars which are present in the scene'];
-            XML.main_DASH_object.potential_DASH_objects.object.pose.position.COMMENT = 'x,y,z in meters';
-            XML.main_DASH_object.potential_DASH_objects.object.pose.position.CONTENT = 'xxx xxx xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
-            XML.main_DASH_object.potential_DASH_objects.object.pose.quaternion.CONTENT = 'xxx xxx xxx xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
-            XML.main_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.CONTENT = 'xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.COMMENT =...
-                'Here we define part of interest. E.g., if we were interested in taking lid off a jar we would specify here "Lid"';
+            
+            if generatecomments
+                XML.main_DASH_object.cad_DASH_model.COMMENT = 'Model/models of the object, can have formats 3ds, obj, stl, pcd';                
+                XML.main_DASH_object.cad_DASH_model.uri.COMMENT = 'Point cloud model of the object';
+            end
+            XML.main_DASH_object.cad_DASH_model.uri.CONTENT = {'void'};
+            
+            if generatecomments
+                XML.main_DASH_object.part_DASH_graph.COMMENT = 'Part-graph of the object';
+                XML.main_DASH_object.part_DASH_graph.uri.COMMENT = ' (labelled point cloud) ';
+            end
+            XML.main_DASH_object.part_DASH_graph.uri.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.COMMENT =...
+                    ['In the following we describe all potential objects. '...
+                    'E.g, if we are interested in a jar we need to describe '... 
+                    'all the jars which are present in the scene'];
+                XML.main_DASH_object.potential_DASH_objects.object.pose.position.COMMENT = 'x,y,z in meters';
+            end           
+            XML.main_DASH_object.potential_DASH_objects.object.pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.COMMENT =...
+                    'Here we define part of interest. E.g., if we were interested in taking lid off a jar we would specify here "Lid"';
+            end
             XML.main_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.CONTENT = 'void';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.COMMENT =...
-                'Description of object parts if any, otherwise "void"';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).name.CONTENT = 'xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.COMMENT = 'x,y,z in meters';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.CONTENT = 'xxx xxx xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.CONTENT = 'xxx xxx xxx xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.CONTENT = 'xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).name.CONTENT = 'xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.COMMENT = 'x,y,z in meters';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.CONTENT = 'xxx xxx xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.CONTENT = 'xxx xxx xxx xxx';
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';        
-            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.CONTENT = 'xxx';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.COMMENT =...
+                    'Description of object parts if any, otherwise "void"';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).name.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.COMMENT = 'x,y,z in meters';
+            end            
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.CONTENT = 'void';                        
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).name.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.COMMENT = 'x,y,z in meters';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';        
+            end
+            XML.main_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.CONTENT = 'void';
+          
+            
+            %
+            % Primary object
+            %
+            if generatecomments
+                XML.primary_DASH_object.name.COMMENT = 'Name of the object';
+            end
+            XML.primary_DASH_object.name.CONTENT = 'Primary object name';
+            
+            if generatecomments
+                XML.primary_DASH_object.cad_DASH_model.COMMENT = 'Model/models of the object, can have formats 3ds, obj, stl, pcd';                
+                XML.primary_DASH_object.cad_DASH_model.uri.COMMENT = 'Point cloud model of the object';
+            end
+            XML.primary_DASH_object.cad_DASH_model.uri.CONTENT = {'void'};
+            
+            if generatecomments
+                XML.primary_DASH_object.part_DASH_graph.COMMENT = 'Part-graph of the object';
+                XML.primary_DASH_object.part_DASH_graph.uri.COMMENT = ' (labelled point cloud) ';
+            end
+            XML.primary_DASH_object.part_DASH_graph.uri.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.COMMENT =...
+                    ['In the following we describe all potential objects. '...
+                    'E.g, if we are interested in a jar we need to describe '... 
+                    'all the jars which are present in the scene'];
+                XML.primary_DASH_object.potential_DASH_objects.object.pose.position.COMMENT = 'x,y,z in meters';
+            end           
+            XML.primary_DASH_object.potential_DASH_objects.object.pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.COMMENT =...
+                    'Here we define part of interest. E.g., if we were interested in taking lid off a jar we would specify here "Lid"';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.COMMENT =...
+                    'Description of object parts if any, otherwise "void"';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).name.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.COMMENT = 'x,y,z in meters';
+            end            
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.CONTENT = 'void';                        
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).name.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.COMMENT = 'x,y,z in meters';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';        
+            end
+            XML.primary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.CONTENT = 'void';
+
+            %
+            % Secondary object
+            %
+            if generatecomments
+                XML.secondary_DASH_object.name.COMMENT = 'Name of the object';
+            end
+            XML.secondary_DASH_object.name.CONTENT = 'Secondary object name';
+            
+            if generatecomments
+                XML.secondary_DASH_object.cad_DASH_model.COMMENT = 'Model/models of the object, can have formats 3ds, obj, stl, pcd';                
+                XML.secondary_DASH_object.cad_DASH_model.uri.COMMENT = 'Point cloud model of the object';
+            end
+            XML.secondary_DASH_object.cad_DASH_model.uri.CONTENT = {'void'};
+            
+            if generatecomments
+                XML.secondary_DASH_object.part_DASH_graph.COMMENT = 'Part-graph of the object';
+                XML.secondary_DASH_object.part_DASH_graph.uri.COMMENT = ' (labelled point cloud) ';
+            end
+            XML.secondary_DASH_object.part_DASH_graph.uri.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.COMMENT =...
+                    ['In the following we describe all potential objects. '...
+                    'E.g, if we are interested in a jar we need to describe '... 
+                    'all the jars which are present in the scene'];
+                XML.secondary_DASH_object.potential_DASH_objects.object.pose.position.COMMENT = 'x,y,z in meters';
+            end           
+            XML.secondary_DASH_object.potential_DASH_objects.object.pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.pose.pose_DASH_reliability.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.COMMENT =...
+                    'Here we define part of interest. E.g., if we were interested in taking lid off a jar we would specify here "Lid"';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.part_DASH_of0x2Dinterest.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.COMMENT =...
+                    'Description of object parts if any, otherwise "void"';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).name.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.COMMENT = 'x,y,z in meters';
+            end            
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(1).pose.pose_DASH_reliability.CONTENT = 'void';                        
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).name.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.COMMENT = 'x,y,z in meters';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.position.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.COMMENT = 'x y z (imaginary part)  and w (real part)';
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.quaternion.CONTENT = 'void';
+            
+            if generatecomments
+                XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.COMMENT = 'value of pose reliability from 0 to 1';        
+            end
+            XML.secondary_DASH_object.potential_DASH_objects.object.object_DASH_parts.part(2).pose.pose_DASH_reliability.CONTENT = 'void';
 
             %
             % NOTE: We leave these next entries empty since, according to the specs,
             % they are not always present.
             %
-
-            % Primary object        
-            XML.primary_DASH_object = [];
-
-            % Secondary object        
-            XML.secondary_DASH_object = [];
-
+            
             % Main support plain        
             XML.main_support_plane = [];
 
@@ -498,8 +728,10 @@ function varargout = adttool(BagSpec, varargin)
 
             % Wrist-to-TCP-transform
             % (don't worry about the weird UTF codes... should come out
-            % ok in the XML file)        
-            XML.wrist_DASH_to0x2DTCP0x2Dtransform.COMMENT = 'Transformation with respect to the hand';
+            % ok in the XML file)     
+            if generatecomments
+                XML.wrist_DASH_to0x2DTCP0x2Dtransform.COMMENT = 'Transformation with respect to the hand';
+            end
             % XML.wrist_DASH_to0x2DTCP0x2Dtransform.pose.position;
             % XML.wrist_DASH_to0x2DTCP0x2Dtransform.pose.COMMENT = 
 
@@ -580,9 +812,16 @@ function varargout = adttool(BagSpec, varargin)
         end
 
         SEC(:,1) = PreviousSE';
+        
+        % Find the maximum shared data stream length limit across SEC topics...
+        MaxSharedSECTopicDataLength = Inf;
+        for iSECTopic = 1:size(SECTopicIndices,2)
+            MaxSharedSECTopicDataLength = min(MaxSharedSECTopicDataLength,...
+                                              size(ADTBagMsg{SECTopicIndices(iSECTopic)},2));
+        end
 
         % Build both the SEC and an action chunk meta sequence.
-        for iStep = 1:size(ADTBagMsg{SECTopicIndices(1)}, 2)
+        for iStep = 1:MaxSharedSECTopicDataLength
 
             for iTopic = 1:size(SECTopicIndices,2)
                 CurrentSE(iTopic) = str2num(ADTBagMsg{SECTopicIndices(iTopic)}{iStep}.data);
@@ -761,6 +1000,13 @@ function varargout = adttool(BagSpec, varargin)
                 end
             end
             
+            % Specify a description for each action chunk...
+            if ~isempty(ActionChunkNames)
+                XML.action_DASH_chunks.action_DASH_chunk(iChunk).context = ActionChunkNames{iChunk};
+            else
+                XML.action_DASH_chunks.action_DASH_chunk(iChunk).context = 'Description';
+            end
+            
             % Generate the XML for each object depending on whether or not
             % the object interacts with the hand.
             for iObj = 1:size(Objects,2)
@@ -768,7 +1014,7 @@ function varargout = adttool(BagSpec, varargin)
                 % Format the object field string for xml_io_tools...
                 ObjField = strrep(Objects{iObj}, '-', '_DASH_');
                 ObjField = [ObjField '_DASH_act'];
-                
+                                
                 if interactswithhand(IntTab, iObj)                                        
                     
                     % Start timestamp...
