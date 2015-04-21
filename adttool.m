@@ -31,7 +31,7 @@ function varargout = adttool(BagSpec, varargin)
 %
 %   Options (optional name/value pairs):
 %
-%       'XMLSpec', Value:   ADT XML input specification. Value should be
+%       'XMLSpec', Value:   ADT XML input/output specification. Value should be
 %                           XML filename or directory name of XML file
 %                           location. If file does not exist, it is generated.
 %                           If XMLSpec option is omitted, it defaults
@@ -413,7 +413,7 @@ function varargout = adttool(BagSpec, varargin)
             try
                 if exist([XMLDirName '/' XMLFileName])
                     fprintf('Reading ADT XML file...');
-                    [XML XMLRootName XMLDOMNode] = xml_read([XMLDirName '/' XMLFileName]);
+                    [XML XMLRootName XMLDOMNode] = xml_read(fullfile(XMLDirName, XMLFileName));
                     fprintf('finished!\n');
                 else
                     XMLRootName = 'action_DASH_primitive';

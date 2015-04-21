@@ -66,7 +66,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
         BagFileName = strrep(BagFileName, ' ', '\ ');
         
         fprintf('Loading rosbag file...');
-        BagOut = ros.Bag.load([BagDirName '/' BagFileName]);
+        BagOut = ros.Bag.load(fullfile(BagDirName, BagFileName));
         fprintf('finished!\n');
 
     else

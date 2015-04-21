@@ -22,7 +22,7 @@ function varargout = adteditor(varargin)
 
 % Edit the above text to modify the response to help adteditor
 
-% Last Modified by GUIDE v2.5 16-Apr-2015 15:41:30
+% Last Modified by GUIDE v2.5 20-Apr-2015 17:42:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -51,118 +51,133 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to adteditor (see VARARGIN)
 
-    import javax.swing.*
-    import javax.swing.tree.*;
+     import javax.swing.*
+     import javax.swing.tree.*;
 
-    % Choose default command line output for adteditor
-    handles.output = hObject;        
-   
-    %% ---------
-    % VARIABLES
-    %-----------
-    
-    % File/directory variables...
-    handles.Data.BagDirName = [];
-    handles.Data.XMLDirName = [];
-    handles.Data.BagFileName = [];
-    handles.Data.XMLFileName = [];
+    %
+    % Set up persistent variables in Data struct in handles,
+    % but only if the opening function is being called for
+    % the first time...
+    %
+    if ~isfield(handles, 'Data') 
+       
+        % Choose default command line output for adteditor
+        handles.output = hObject;        
 
-    % rosbag variables. Stored in handles.
-    handles.Data.ADTBag = [];
-    handles.Data.ADTBagMeta = [];
-    handles.Data.ADTBagMsg = [];
-    
-    handles.Data.ADTBagInfo = [];
-    handles.Data.ADTBagTopicInfo = [];
-    handles.Data.ADTBagTopicNames = [];
-    handles.Data.ADTBagTopicSizes = [];
-    handles.Data.ADTBagTopicStrings = [];
-    handles.Data.ADTBagTopicTypes = [];
-    
-    % Topic indices...
-    handles.Data.iRGBTopic = 0;
-    handles.Data.iDepthTopic = 0;    
-    
-    % Currently loaded topics...
-    handles.Data.TopicData = {};
-    handles.Data.TopicMap = [];
-    
-    % Main axes object handles..
-    % handles.Data.CurrentPlots = {};
-    handles.Data.hTopicPlots = [];
-    handles.Data.hTrackingLine = [];
-    handles.Data.hSelection = [];
-    handles.Data.hSelectionContextMenu = [];
-    handles.Data.hSelectionContextMenuItems = [];
-    
-    % Topic tree stuff...
-    handles.Data.Tree = [];
-    handles.Data.hJTree = [];
-    handles.Data.TreeModel = [];
-    handles.Data.hTree = [];
-    handles.Data.hTreeContainer = [];
-    
-    % Checkbox stuff...
-    handles.Data.javaImage_checked = [];
-    handles.Data.javaImage_unchecked = [];
-    handles.Data.iconWidth = [];
-    
-    % Action chunks...
-    handles.Data.ActionChunks = [];
-    handles.Data.ActionChunkNames = [];
-    handles.Data.hActionChunks = [];
-    handles.Data.hActionChunksText = [];
-    handles.Data.hActionChunkContextMenu = [];
-    handles.Data.hActionChunkContextMenuItems = [];
-    
-    % SEC...
-    handles.Data.SECButtons = [];
-    
-    % Plot flags...
-    handles.Data.isselectionplotted = false;
-    handles.Data.istrackinglineplotted = false;
-    
-    % Axes limits...
-    handles.Data.mainAxesMaxX = NaN;
-    handles.Data.mainAxesMinY = NaN;
-    handles.Data.mainAxesMaxY = NaN;
-    
-    % Mouse click flags...
-    handles.Data.LeftButtonStates = struct('DOWN',1,'INMOTION',2,'UP',3);
-    handles.Data.LastLeftButtonState = handles.Data.LeftButtonStates.UP;
-    handles.Data.CurrentLeftButtonState = handles.Data.LeftButtonStates.UP;
+        %% ---------
+        % VARIABLES
+        %-----------
+
+        % File/directory variables...
+        handles.Data.BagDirName = [];
+        handles.Data.XMLDirName = [];
+        handles.Data.BagFileName = [];
+        handles.Data.XMLFileName = [];
+
+        % rosbag variables. Stored in handles.
+        handles.Data.ADTBag = [];
+        handles.Data.ADTBagMeta = [];
+        handles.Data.ADTBagMsg = [];
         
-    % Mouse click points...
-    handles.Data.iCurrentFrame = 1;
-    handles.Data.DownPoint = [0,0];
-    handles.Data.CurrentPoint = [0,0];
-    
-    % Current timestep in bag...
-    handles.Data.currenttimestep = 0;
-    
-    % Plot update flag...
-    handles.Data.updateplots = true;
+        handles.Data.ADTBagInfo = [];
+        handles.Data.ADTBagTopicInfo = [];
+        handles.Data.ADTBagTopicNames = [];
+        handles.Data.ADTBagTopicSizes = [];
+        handles.Data.ADTBagTopicStrings = [];
+        handles.Data.ADTBagTopicTypes = [];
+        
+        % ADT XML struct...
+        handles.Data.XML = [];
 
-    % Let's roll out...
-    fprintf('\nStarting ADT editor...\n');
+        % Topic indices...
+        handles.Data.iRGBTopic = 0;
+        handles.Data.iDepthTopic = 0;    
+
+        % Currently loaded topics...
+        handles.Data.TopicData = {};
+        handles.Data.TopicMap = [];
+
+        % Main axes object handles..
+        % handles.Data.CurrentPlots = {};
+        handles.Data.hTopicPlots = [];
+        handles.Data.hTrackingLine = [];
+        handles.Data.hSelection = [];
+        handles.Data.hSelectionContextMenu = [];
+        handles.Data.hSelectionContextMenuItems = [];
+
+        % Topic tree stuff...
+        handles.Data.Tree = [];
+        handles.Data.hJTree = [];
+        handles.Data.TreeModel = [];
+        handles.Data.hTree = [];
+        handles.Data.hTreeContainer = [];
+
+        % Checkbox stuff...
+        handles.Data.javaImage_checked = [];
+        handles.Data.javaImage_unchecked = [];
+        handles.Data.iconWidth = [];
+
+        % Action chunks...
+        handles.Data.ActionChunks = [];
+        handles.Data.ActionChunkNames = [];
+        handles.Data.hActionChunks = [];
+        handles.Data.hActionChunksText = [];
+        handles.Data.hActionChunkContextMenu = [];
+        handles.Data.hActionChunkContextMenuItems = [];
+
+        % SEC...
+        handles.Data.SECButtons = [];
+
+        % Plot flags...
+        handles.Data.isselectionplotted = false;
+        handles.Data.istrackinglineplotted = false;
+
+        % Axes limits...
+        handles.Data.mainAxesMaxX = NaN;
+        handles.Data.mainAxesMinY = NaN;
+        handles.Data.mainAxesMaxY = NaN;
+
+        % Mouse click flags...
+        handles.Data.LeftButtonStates = struct('DOWN',1,'INMOTION',2,'UP',3);
+        handles.Data.LastLeftButtonState = handles.Data.LeftButtonStates.UP;
+        handles.Data.CurrentLeftButtonState = handles.Data.LeftButtonStates.UP;
+
+        % Mouse click points...
+        handles.Data.iCurrentFrame = 1;
+        handles.Data.DownPoint = [0,0];
+        handles.Data.CurrentPoint = [0,0];
+
+        % Current timestep in bag...
+        handles.Data.currenttimestep = 0;
+
+        % Flags...
+        handles.Data.updateplots = true;    
+        handles.Data.fileinputspecified = false;
+        handles.Data.alreadyrunning = true;        
+
+        % Let's roll out...
+        fprintf('\nStarting ADT editor...\n');
+        
+    end
 
     %% -------------------------
     % INPUT ARGUMENT PROCESSING
-    %---------------------------
+    %---------------------------        
     
-    % Check BagSpec argument...
-    if nargin >= 1
+    % When a rosbag specification has been passed...
+    if nargin > 3
         
-        BagSpec = varargin{1};
+        InputSpec = varargin{1};
         
-        if ischar(BagSpec) && isdir(BagSpec)                        
+        % ...if it's a directory...
+        if ischar(InputSpec) && isdir(InputSpec)                        
             
             % Get the directory name...
-            [Pathstr, Name, Ext] = fileparts(BagSpec);
+            [Pathstr, Name, Ext] = fileparts(InputSpec);
             handles.Data.BagDirName = fullfile(Pathstr, Name);
             
             % Find the bag file...                        
-            BagFileNames = dir([BagDirName '/*.bag']);            
+            BagFileNames = dir([handles.Data.BagDirName '/*.bag']);            
             if size(BagFileNames,1) >= 1
                 % We just assume it's the first in the list.
                 handles.Data.BagFileName = BagFileNames(1).name;
@@ -171,275 +186,342 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
             % Find the xml file...
             % We just assume it's the first in the list.
             handles.Data.XMLDirName = handles.Data.BagDirName;
-            XMLFileNames = dir([BagDirName '/ADT*.xml']);
+            XMLFileNames = dir([handles.Data.BagDirName '/ADT*.xml']);
             if size(XMLFileNames,1) >= 1
                 % We just assume it's the first in the list.
                 handles.Data.XMLFileName = XMLFileNames(1).name;
             end
             
-        elseif ischar(BagSpec) && exist(BagSpec, 'file')
+            handles.Data.fileinputspecified = true;
+
+        % ...if it's a file...
+        elseif ischar(InputSpec) && exist(InputSpec, 'file')
             
             % Get the file name...
-            [Pathstr, handles.Data.BagFileName, Ext] = fileparts(BagSpec);
-            handles.Data.BagFileName = [BagFileName Ext];
-            if isempty(Pathstr)
-                Pathstr = '.';
-            else
-                BagDirName = Pathstr;
+            [Pathstr, FileName, Ext] = fileparts(InputSpec);
+            
+            switch lower(Ext)
+                case {'.bag'}
+                    handles.Data.BagDirName = Pathstr;
+                    handles.Data.BagFileName = [FileName, Ext];
+                    
+                case {'.xml', '.txt'}
+                    handles.Data.XMLDirName = Pathstr;
+                    handles.Data.XMLFileName = [FileName, Ext];
             end
-        
-        elseif ~ischar(BagSpec) && isobject(BagSpec)
+            
+            handles.Data.fileinputspecified = true;
+                        
+        % ...if it's ros bag variable...
+        elseif ~ischar(InputSpec) && isobject(InputSpec)
 
             % WARNING: Passing the rosbag as an argument is not going to work
             % at the moment because it relies on deep copying of handle
             % objects which is not currently working.  Work in progress.
-            handles.Data.ADTBag = BagSpec;
+            handles.Data.ADTBag = InputSpec;
 
-        elseif ~ischar(BagSpec) && iscell(BagSpec)
+        % ...if it's a ros bag cell array in {Bag, Meta, Msg} format...
+        elseif ~ischar(InputSpec) && iscell(InputSpec)
 
-            if size(BagSpec,2) == 3 && isobject(BagSpec{1}) && iscell(BagSpec{2}) && iscell(BagSpec{3})
+            if size(InputSpec,2) == 3 && isobject(InputSpec{1}) && iscell(InputSpec{2}) && iscell(InputSpec{3})
 
-                handles.Data.ADTBag = BagSpec{1};
-                handles.Data.ADTBagMeta = BagSpec{2};
-                handles.Data.ADTBagMsg = BagSpec{3};
+                handles.Data.ADTBag = InputSpec{1};
+                handles.Data.ADTBagMeta = InputSpec{2};
+                handles.Data.ADTBagMsg = InputSpec{3};
 
             else
-                error('adttool: argument 1 was not in [Bag, Meta, Msg] format!');
+                handles.Data.fileinputspecified = false;
+                display('adteditor: argument 1 was not in [Bag, Meta, Msg] format!');
             end
 
         else
-            
-            error(['adteditor: argument 1 should be either a directory name, '...
+            handles.Data.fileinputspecified = false;
+            display(['adteditor: argument 1 should be either a directory name, '...
                    'a rosbag file name or a rosbag struct.']);
 
-        end
+        end        
+        
     end
     
     %% ------------
     % FILE LOADING
-    %--------------
+    %--------------        
     
     % Load rosbag...
-    if isempty(handles.Data.ADTBag)
-        if ~isempty(BagFileName)
+    if handles.Data.fileinputspecified
+                
+        if ~isempty(handles.Data.XMLFileName)
+            
+            % Load ADT XML file...
+            [handles.Data.XML XMLRootName XMLDOMNode] =...
+                xml_read(fullfile(handles.Data.XMLDirName, handles.Data.XMLFileName));
+            
+            % Search for a ros bag filename in the XML...
+            if isfield(handles.Data.XML, 'recording_DASH_data')
+                
+                % Grab the file spec. from the XML...
+                BagFileSpec = handles.Data.XML.recording_DASH_data;
+                
+                % Break it down...
+                [BagDirName BagFileName BagFileExt] = fileparts(BagFileSpec);
+                                
+                if isempty(BagDirName)
+                    handles.Data.BagDirName = handles.Data.XMLDirName;                    
+                else
+                    handles.Data.BagDirName = BagDirName;                    
+                end
+                
+                handles.Data.BagFileName = [BagFileName BagFileExt];
+                
+                if exist(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), 'file')
+                    
+                    % Ask if we should load the ros bag...
+                    choice = questdlg(['A ROS bag file associated with this ADT was found. '...
+                                       '(' fullfile(handles.Data.BagDirName, handles.Data.BagFileName) ') '...
+                                       'Would you like to load the ROS bag? (Note: this could take some time!)'],...
+                                       'Load ROS bag file?',...
+                                       'Yes','No','No');
+                                  
+                    % Handle response
+                    switch choice
+                        case 'Yes'
+                            
+                           % Load ros bag file...
+                            [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
+                                loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));
 
-            fprintf('Loading rosbag file...');
-            handles.Data.ADTBag = ros.ADTBag.load(fullfile(BagDirName, BagFileName));
-            fprintf('finished!\n');
+                        case 'No'
+                            
+                            % Do nothing...
+                            display('adteditor: No ros bag file loaded!');
+                    end
+                end                
+            end
+        
+        elseif ~isempty(handles.Data.BagFileName)
+            
+            % Load ros bag file...
+            [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
+                loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));            
 
-        else
-            error('adttool: No rosbag specified!');
-        end    
+        else            
+            display('adteditor: No file specified!');
+        end
+                
     end
     
-    % Read rosbag topic info...
-    if isempty(handles.Data.ADTBagInfo)        
-        fprintf('Loading rosbag topic info');
+    if ~isempty(handles.Data.ADTBag)
         
-        % Parse info from the rosbag...
-        handles.Data.ADTBagInfo = handles.Data.ADTBag.info();
-        handles.Data.ADTBagTopicStrings =...
-            strsplit(handles.Data.ADTBagInfo(findstr(handles.Data.ADTBagInfo, 'topics:'):end), '\n');
+        % Read rosbag topic info...
+        if isempty(handles.Data.ADTBagInfo)        
+            fprintf('Loading rosbag topic info');
 
-        topiccounter = 1;
-        for iTopic = 1:length(handles.Data.ADTBagTopicStrings)            
+            % Parse info from the rosbag...
+            handles.Data.ADTBagInfo = handles.Data.ADTBag.info();
+            handles.Data.ADTBagTopicStrings =...
+                strsplit(handles.Data.ADTBagInfo(findstr(handles.Data.ADTBagInfo, 'topics:'):end), '\n');
 
-            handles.Data.ADTBagTopicInfo = strsplit(handles.Data.ADTBagTopicStrings{iTopic});
+            topiccounter = 1;
+            for iTopic = 1:length(handles.Data.ADTBagTopicStrings)            
 
-            if length(handles.Data.ADTBagTopicInfo) >= 6
-                handles.Data.ADTBagTopicNames{topiccounter} = handles.Data.ADTBagTopicInfo{2};
-                handles.Data.ADTBagTopicSizes{topiccounter} = str2num(handles.Data.ADTBagTopicInfo{3});
-                handles.Data.ADTBagTopicTypes{topiccounter} = handles.Data.ADTBagTopicInfo{6};
+                handles.Data.ADTBagTopicInfo = strsplit(handles.Data.ADTBagTopicStrings{iTopic});
+
+                if length(handles.Data.ADTBagTopicInfo) >= 6
+                    handles.Data.ADTBagTopicNames{topiccounter} = handles.Data.ADTBagTopicInfo{2};
+                    handles.Data.ADTBagTopicSizes{topiccounter} = str2num(handles.Data.ADTBagTopicInfo{3});
+                    handles.Data.ADTBagTopicTypes{topiccounter} = handles.Data.ADTBagTopicInfo{6};
+                end
+
+                topiccounter = topiccounter + 1;
+
+                % Print progress dots...
+                fprintf('.');
+
             end
 
-            topiccounter = topiccounter + 1;
-            
-            % Print progress dots...
-            fprintf('.');
-            
+            fprintf('finished!\n');        
+        end        
+
+        % Read topics...
+        if isempty(handles.Data.ADTBagMeta) || isempty(handles.Data.ADTBagMsg)
+            fprintf('Reading rosbag topics.  This can take some time.  Grab a coffee or watch the dots.');
+
+            % Read all data in each topic separately...
+            for iTopic = 1:length(handles.Data.ADTBagTopicNames)        
+
+                [handles.Data.ADTBagMsg{iTopic} handles.Data.ADTBagMeta{iTopic}] =...
+                    handles.Data.ADTBag.readAll({handles.Data.ADTBagTopicNames{iTopic}});
+
+                % Print progress dots...
+                fprintf('.');
+            end
+
+            fprintf('finished!\n');
+        end        
+
+        % Set up topics plot...
+        if ~isempty(handles.Data.ADTBagMeta) && ~isempty(handles.Data.ADTBagMsg)                        
+
+            handles.Data.iCurrentFrame = 1;
+            handles.Data.currenttimestep =...
+                handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
+
+            [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);                
+
+            handles.Data.iRGBTopic = findtopic(handles.Data.ADTBagTopicNames, 'rgb/image_color', 'fuzzy');
+
+            if handles.Data.iRGBTopic ~= 0 && ~isfield(handles, 'hImageFig')                
+                handles.hImageFig = figure;
+                handles.hImageAxes = axes;
+                [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);
+            end                
+
+            handles.Data.iDepthTopic = findtopic(handles.Data.ADTBagTopicNames, 'depth_registered/image_raw', 'fuzzy');
+
+            if handles.Data.iDepthTopic ~= 0 && ~isfield(handles, 'hDepthImageFig')
+                handles.hDepthImageFig = figure;
+                handles.hDepthImageAxes = axes;
+                [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);
+            end
+
+            %
+            % Focus and hold main figure axes...
+            %        
+            figure(handles.MainFig);
+            subplot(handles.MainAxes);
+            hold on;
+
+            %
+            % Set callbacks to be uninterruptible...
+            %        
+            set(handles.MainFig, 'Interruptible', 'off');
+            set(handles.MainFig, 'BusyAction', 'cancel');
+
+            %
+            % Close all figures when main fig is closed...
+            %        
+            % deleteallfigures = @(~, ~) delete(findobj(0,'type','figure'));
+            set(handles.MainFig, 'DeleteFcn', {@deletefigures, guidata(hObject)});
+
+            % Update handles structure
+            guidata(hObject, handles);
+
+            %
+            % Set up axis button-down, button-motion and button-up callbacks...
+            %
+            % set(hObject,'WindowButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
+            set(handles.MainAxes,'HitTest','on');
+            % set(hObject,'WindowButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
+            % set(hObject,'WindowButtonMotionFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonMotionFcn',hObject,eventdata,guidata(hObject)));        
+            set(handles.MainAxes,'ButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
+            set(handles.MainFig,'WindowButtonUpFcn', @(hObject,eventdata)adteditor('MainFig_ButtonUpFcn',hObject,eventdata,guidata(hObject)));
+            % hMainAxesChildren = get(handles.MainAxes, 'Children');
+            % for iChild = 1:size(hMainAxesChildren,1)
+            %     set(hMainAxesChildren(iChild),'HitTest','off');
+            %     set(hMainAxesChildren(iChild), 'ButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
+            %     set(hMainAxesChildren(iChild), 'ButtonUpFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonUpFcn',hObject,eventdata,guidata(hObject)));
+            % end                
+
+            %
+            % Populate the topics list...        
+            %
+            % for iTopic = 1:length(handles.Data.TopicNames)    
+            %     TopicTypeList{iTopic} = [handles.Data.TopicNames{iTopic}...
+            %                              '  ('...
+            %                              handles.Data.TopicTypes{iTopic} ')'];
+            % end
+            % set(handles.TopicList, 'String', TopicTypeList);        
+            % set(handles.TopicList, 'String', handles.Data.ADTBagTopicNames);                
+
+            % Set up checked/unchecked icons for topic tree...
+            [I,map] = checkedIcon;
+            handles.Data.javaImage_checked = im2java(I,map);
+
+            [I,map] = uncheckedIcon;
+            handles.Data.javaImage_unchecked = im2java(I,map);
+
+            handles.Data.iconWidth = handles.Data.javaImage_unchecked.getWidth;
+
+            % Set up hash table for topic data...        
+            handles.Data.TopicMap = containers.Map;
+
+            % Search for the robot data topic...
+            handles.Data.iDataTopic = findtopic(handles.Data.ADTBagTopicNames, 'lwr_data', 'fuzzy');
+
+            % Recursively build topic tree from the data topic root...
+            handles.Data.Tree = buildtopictree(hObject, eventdata, handles, handles.Data.iDataTopic);
+
+            % set treeModel
+            handles.Data.TreeModel = DefaultTreeModel( handles.Data.Tree );
+
+            % create the tree
+            % handles.Data.Tree = uitree('v0');
+            [handles.Data.hTree, handles.Data.hTreeContainer] =...
+                uitree('v0', 'Root', handles.Data.Tree);
+            handles.Data.hTree.setModel( handles.Data.TreeModel );
+            handles.Data.hTree.MultipleSelectionEnabled = true;
+            % we often rely on the underlying java tree
+            handles.Data.hJTree = handle(handles.Data.hTree.getTree, 'CallbackProperties');
+
+            % Set up selection context menu...        
+            handles.Data.hSelectionContextMenu = uicontextmenu;
+            handles.Data.hSelectionContextMenuItems(1) =...
+                uimenu(handles.Data.hSelectionContextMenu, 'label', 'New Action Chunk');
+
+            % Set up action chunk context menu...        
+            handles.Data.hActionChunkContextMenu = uicontextmenu;
+            handles.Data.hActionChunkContextMenuItems(1) =...
+                uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
+
+            % Set up action chunk context menu...
+            % handles.Data.hActionContextMenu = uicontextmenu;
+            % handles.Data.hActionChunkContextMenuItems(1) =...
+            %     uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
+
+            % Update handles structure
+            guidata(hObject, handles);
+
+            % set(handles.Data.Tree, 'Units', 'normalized', 'position', [0 0 1 0.5]);
+            % set(tree, 'NodeSelectedCallback', @selected_cb );
+            % function selected_cb( tree, ev )
+            set(handles.Data.hTree,'NodeSelectedCallback', {@CheckBoxSelected_Callback, hObject, guidata(hObject)});
+            % set(handles.Data.hTree, 'NodeSelectedCallback', @(hObject,eventdata)adteditor('CheckBoxSelected_Callback', hObject, guidata(hObject)) );
+
+            % make root the initially selected node
+            % handles.Data.hTree.setSelectedNode(handles.Data.Tree);
+
+            % MousePressedCallback is not supported by the uitree, but by jtree
+            % set(jtree, 'MousePressedCallback', @mousePressedCallback);
+            % function mousePressedCallback(hTree, eventData) %,additionalVar)
+            % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject,eventdata)adteditor('NodeMousePressed_Callback',hObject,eventdata,guidata(hObject)));
+            % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject)adteditor('NodeMousePressed_Callback', guidata(hObject)));
+            % set(handles.Data.hJTree, 'MousePressedCallback', @(handles.Data.hTree, eventdata)adteditor('NodeMousePressed_Callback', handles.Data.hTree, eventdata));
+            set(handles.Data.hJTree,'MousePressedCallback', {@NodeMousePressed_Callback, guidata(hObject)});
+
+            % figure(handles.MainFig, 'pos',[300,300,150,150]);
+            set(handles.Data.hTreeContainer, 'Parent',handles.MainFig);
+            set(handles.Data.hTreeContainer, 'Units','pixels', 'Position', [20 180 160 500]);
+
+            %
+            % Set up action chunk mask...
+            %                
+            % handles.Data.ActionChunkMask = zeros(size(handles.Data.ADTBagMeta{handles.Data.iDataTopic}));
+
+            %
+            % Populate the SECLink list boxes etc...
+            %
+            set(handles.SECLink_Topic_DropDown, 'string', {'None' handles.Data.ADTBagTopicNames{:}});
+            set(handles.SECLink_Topic_ListBox, 'string', {'None', 'None', 'None'});
+            set(handles.SECLink_FirstObj_TextBox, 'string', 'First Object');
+            set(handles.SECLink_FirstObj_ListBox, 'string', {'hand', 'main-object', 'main-object'});
+            set(handles.SECLink_SecondObj_TextBox, 'string', 'Second Object');
+            set(handles.SECLink_SecondObj_ListBox, 'string', {'main-object', 'primary-object', 'secondary-object'});
+
+            fprintf('\n...finished!\n');
+
         end
         
-        fprintf('finished!\n');        
-    end        
-    
-    % Read topics...
-    if isempty(handles.Data.ADTBagMeta) || isempty(handles.Data.ADTBagMsg)
-        fprintf('Reading rosbag topics.  This can take some time.  Grab a coffee or watch the dots.');
-        
-        % Read all data in each topic separately...
-        for iTopic = 1:length(handles.Data.ADTBagTopicNames)        
-
-            [handles.Data.ADTBagMsg{iTopic} handles.Data.ADTBagMeta{iTopic}] =...
-                handles.Data.ADTBag.readAll({handles.Data.ADTBagTopicNames{iTopic}});
-
-            % Print progress dots...
-            fprintf('.');
-        end
-        
-        fprintf('finished!\n');
-    end        
-    
-    % Set up topics plot...
-    if ~isempty(handles.Data.ADTBagMeta) && ~isempty(handles.Data.ADTBagMsg)                        
-        
-        handles.Data.iCurrentFrame = 1;
-        handles.Data.currenttimestep =...
-            handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
-        
-        [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);                
-        
-        handles.Data.iRGBTopic = findtopic(handles.Data.ADTBagTopicNames, 'rgb/image_color', 'fuzzy');
-        
-        if handles.Data.iRGBTopic ~= 0
-            handles.hImageFig = figure;
-            handles.hImageAxes = axes;
-            [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);
-        end                
-        
-        handles.Data.iDepthTopic = findtopic(handles.Data.ADTBagTopicNames, 'depth_registered/image_raw', 'fuzzy');
-                        
-        if handles.Data.iDepthTopic ~= 0
-            handles.hDepthImageFig = figure;
-            handles.hDepthImageAxes = axes;
-            [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);
-        end
-        
-        %
-        % Focus and hold main figure axes...
-        %        
-        figure(handles.MainFig);
-        subplot(handles.MainAxes);
-        hold on;
-        
-        %
-        % Set callbacks to be uninterruptible...
-        %        
-        set(handles.MainFig, 'Interruptible', 'off');
-        set(handles.MainFig, 'BusyAction', 'cancel');
-        
-        %
-        % Close all figures when main fig is closed...
-        %        
-        % deleteallfigures = @(~, ~) delete(findobj(0,'type','figure'));
-        set(handles.MainFig, 'DeleteFcn', {@deletefigures, guidata(hObject)});
-        
-        % Update handles structure
-        guidata(hObject, handles);
-        
-        %
-        % Set up axis button-down, button-motion and button-up callbacks...
-        %
-        % set(hObject,'WindowButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
-        set(handles.MainAxes,'HitTest','on');
-        % set(hObject,'WindowButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
-        % set(hObject,'WindowButtonMotionFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonMotionFcn',hObject,eventdata,guidata(hObject)));        
-        set(handles.MainAxes,'ButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
-        set(handles.MainFig,'WindowButtonUpFcn', @(hObject,eventdata)adteditor('MainFig_ButtonUpFcn',hObject,eventdata,guidata(hObject)));
-        % hMainAxesChildren = get(handles.MainAxes, 'Children');
-        % for iChild = 1:size(hMainAxesChildren,1)
-        %     set(hMainAxesChildren(iChild),'HitTest','off');
-        %     set(hMainAxesChildren(iChild), 'ButtonDownFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonDownFcn',hObject,eventdata,guidata(hObject)));
-        %     set(hMainAxesChildren(iChild), 'ButtonUpFcn', @(hObject,eventdata)adteditor('MainAxes_ButtonUpFcn',hObject,eventdata,guidata(hObject)));
-        % end                
-        
-        %
-        % Populate the topics list...        
-        %
-        % for iTopic = 1:length(handles.Data.TopicNames)    
-        %     TopicTypeList{iTopic} = [handles.Data.TopicNames{iTopic}...
-        %                              '  ('...
-        %                              handles.Data.TopicTypes{iTopic} ')'];
-        % end
-        % set(handles.TopicList, 'String', TopicTypeList);        
-        % set(handles.TopicList, 'String', handles.Data.ADTBagTopicNames);                
-        
-        % Set up checked/unchecked icons for topic tree...
-        [I,map] = checkedIcon;
-        handles.Data.javaImage_checked = im2java(I,map);
-        
-        [I,map] = uncheckedIcon;
-        handles.Data.javaImage_unchecked = im2java(I,map);
-        
-        handles.Data.iconWidth = handles.Data.javaImage_unchecked.getWidth;
-                
-        % Set up hash table for topic data...        
-        handles.Data.TopicMap = containers.Map;
-        
-        % Search for the robot data topic...
-        handles.Data.iDataTopic = findtopic(handles.Data.ADTBagTopicNames, 'lwr_data', 'fuzzy');
-        
-        % Recursively build topic tree from the data topic root...
-        handles.Data.Tree = buildtopictree(hObject, eventdata, handles, handles.Data.iDataTopic);
-        
-        % set treeModel
-        handles.Data.TreeModel = DefaultTreeModel( handles.Data.Tree );
-        
-        % create the tree
-        % handles.Data.Tree = uitree('v0');
-        [handles.Data.hTree, handles.Data.hTreeContainer] =...
-            uitree('v0', 'Root', handles.Data.Tree);
-        handles.Data.hTree.setModel( handles.Data.TreeModel );
-        handles.Data.hTree.MultipleSelectionEnabled = true;
-        % we often rely on the underlying java tree
-        handles.Data.hJTree = handle(handles.Data.hTree.getTree, 'CallbackProperties');
-                
-        % Set up selection context menu...        
-        handles.Data.hSelectionContextMenu = uicontextmenu;
-        handles.Data.hSelectionContextMenuItems(1) =...
-            uimenu(handles.Data.hSelectionContextMenu, 'label', 'New Action Chunk');
-        
-        % Set up action chunk context menu...        
-        handles.Data.hActionChunkContextMenu = uicontextmenu;
-        handles.Data.hActionChunkContextMenuItems(1) =...
-            uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
-        
-        % Set up action chunk context menu...
-        % handles.Data.hActionContextMenu = uicontextmenu;
-        % handles.Data.hActionChunkContextMenuItems(1) =...
-        %     uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
-        
-        % Update handles structure
-        guidata(hObject, handles);
-        
-        % set(handles.Data.Tree, 'Units', 'normalized', 'position', [0 0 1 0.5]);
-        % set(tree, 'NodeSelectedCallback', @selected_cb );
-        % function selected_cb( tree, ev )
-        set(handles.Data.hTree,'NodeSelectedCallback', {@CheckBoxSelected_Callback, hObject, guidata(hObject)});
-        % set(handles.Data.hTree, 'NodeSelectedCallback', @(hObject,eventdata)adteditor('CheckBoxSelected_Callback', hObject, guidata(hObject)) );
-
-        % make root the initially selected node
-        % handles.Data.hTree.setSelectedNode(handles.Data.Tree);
-        
-        % MousePressedCallback is not supported by the uitree, but by jtree
-        % set(jtree, 'MousePressedCallback', @mousePressedCallback);
-        % function mousePressedCallback(hTree, eventData) %,additionalVar)
-        % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject,eventdata)adteditor('NodeMousePressed_Callback',hObject,eventdata,guidata(hObject)));
-        % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject)adteditor('NodeMousePressed_Callback', guidata(hObject)));
-        % set(handles.Data.hJTree, 'MousePressedCallback', @(handles.Data.hTree, eventdata)adteditor('NodeMousePressed_Callback', handles.Data.hTree, eventdata));
-        set(handles.Data.hJTree,'MousePressedCallback', {@NodeMousePressed_Callback, guidata(hObject)});
-                                
-        % figure(handles.MainFig, 'pos',[300,300,150,150]);
-        set(handles.Data.hTreeContainer, 'Parent',handles.MainFig);
-        set(handles.Data.hTreeContainer, 'Units','pixels', 'Position', [20 180 160 500]);
-        
-        %
-        % Set up action chunk mask...
-        %                
-        % handles.Data.ActionChunkMask = zeros(size(handles.Data.ADTBagMeta{handles.Data.iDataTopic}));
-        
-        %
-        % Populate the SECLink list boxes etc...
-        %
-        set(handles.SECLink_Topic_DropDown, 'string', {'None' handles.Data.ADTBagTopicNames{:}});
-        set(handles.SECLink_Topic_ListBox, 'string', {'None', 'None', 'None'});
-        set(handles.SECLink_FirstObj_TextBox, 'string', 'First Object');
-        set(handles.SECLink_FirstObj_ListBox, 'string', {'hand', 'main-object', 'main-object'});
-        set(handles.SECLink_SecondObj_TextBox, 'string', 'Second Object');
-        set(handles.SECLink_SecondObj_ListBox, 'string', {'main-object', 'primary-object', 'secondary-object'});
-        
-        fprintf('\n...finished!\n');
-        
-    end        
+    end
     
     %
     % Set renderer
@@ -1784,4 +1866,20 @@ function SECPanel_CreateFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called    
               
-              
+             
+
+% --------------------------------------------------------------------
+function OpenMenuItem_Callback(hObject, eventdata, handles)
+% hObject    handle to OpenMenuItem (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+    [FileName,PathName,FilterIndex] =...
+            uigetfile({'*.xml'; '*.txt'; '*.bag'}, 'Open ADT XML file or ROS bag file');
+        
+    handles.Data.fileinputspecified = true;
+        
+    % Update handles structure
+    guidata(hObject, handles);
+    
+    adteditor_OpeningFcn(hObject, eventdata, handles, fullfile(PathName, FileName));
