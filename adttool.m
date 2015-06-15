@@ -56,17 +56,18 @@ function varargout = adttool(BagSpec, varargin)
 %
 %       'ObjLink', Topic, SearchString, Object:
 %
-%                           Links an object pose topic in the rosbag to an
-%                           object as previously defined in SECLinks or elsewhere.
-%                           When action chunks are generated from SECLinks,
+%                           Links an object pose topic path in the rosbag to an
+%                           object (as previously defined in SECLinks or elsewhere).
+%                           When action chunks are generated from
+%                           SECLinks or specified manually,
 %                           object start and end poses will then be found
 %                           in the topic and included in the action chunk XML.
-%                           SearchString is a string that is searched for
-%                           in the topic, e.g. 'faceplate', to find the
-%                           relevant object pose info.
-%                           This is a bit of a hack for the moment pending
-%                           a better implementation of object pose
-%                           recording in the rosbags.
+%                           SearchString is a string, e.g. 'faceplate',
+%                           that is searched for in the topic path to find
+%                           the relevant object pose info if the data type
+%                           specified by the topic path is string-based.
+%                           If SearchString is empty, then it is assumed
+%                           that the data type is numerical.
 %
 %       'SEC', SEC:         SEC is an N x D binary array specifying the
 %                           semantic event chain.
@@ -424,6 +425,14 @@ function varargout = adttool(BagSpec, varargin)
                 error('XML file reading error from xml_io_tools, xml_read()');            
                 rethrow(XMLReadException);
             end
+            
+            % If we were not passed action chunk specs, try to read them
+            % from the XML...
+            % if isempty(ActionChunks) && isfield(XML, 'action_DASH_chunks')
+            %     if ~isempty(XML.action_DASH_chunks) && isfield(XML.action_DASH_chunks, 'action_DASH_chunk')
+            % 
+            %     end
+            % end
         
         % ...or generate XML.
         else
@@ -1029,7 +1038,7 @@ function varargout = adttool(BagSpec, varargin)
                     if ObjObjLinksTab(iObj)
                         
                         % ...grab the topic...
-                        iObjTopic = findtopic(ADTBagTopicNames, ObjLinks{ObjObjLinksTab(iObj)}.Topic);
+                        iObjTopic = findtopic(ADTBagTopicNames, ObjLinks{ObjObjLinksTab(iObj)}.Topic, 'revfuzzy');
                         
                         % ...search for the start and end position timestamps in the
                         % rosbag...
@@ -1054,48 +1063,132 @@ function varargout = adttool(BagSpec, varargin)
                         % using the SearchString specified in the ObjLink
                         % to search the topic output at that timestep...
                         %
-                        % WARNING: This is pretty hacky and may break soon.
-                        % Based on current implementation of object pose
-                        % topic publishing.
-                        %
                         % Adding object positions.  Leaving out quaternions
                         % for now, pending further discussion.
                         %                        
-                        % We start with the object start pose...
-                        foo = findstr(ADTBagMsg{iObjTopic}{iObjStartFrame}.data, ObjLinks{ObjObjLinksTab(iObj)}.SearchString);
-                        ObjStartPoseString = ADTBagMsg{iObjTopic}{iObjStartFrame}.data(foo(end):end);
-                        ObjStartPoseString = ObjStartPoseString(size(ObjLinks{ObjObjLinksTab(iObj)}.SearchString,2)+1:end);
-                        ObjStartPoseTMat = [reshape(str2num(ObjStartPoseString),4,3)'; [0 0 0 1]];
                         
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position = [];
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position.CONTENT =...
-                            ObjStartPoseTMat(1:3, end)';
+                        % If no search string was provided, we assume the
+                        % data is numeric and proceed accordingly...
+                        % WARNING: Possible hack here with '[]'...
+                        if strcmp(ObjLinks{ObjObjLinksTab(iObj)}.SearchString, '[]')
+                            
+                            % We start with the object start pose...
+                            
+                            % Remove this main topic path from topicPath and find the sub-path...
+                            iTopicStringStart = strfind(ObjLinks{ObjObjLinksTab(iObj)}.Topic, ADTBagTopicNames{iObjTopic});
+                            topicSubPath = ObjLinks{ObjObjLinksTab(iObj)}.Topic(iTopicStringStart + size(ADTBagTopicNames{iObjTopic},2):end);
+                            
+                            % Split up the topicSubPath into substrings...
+                            % topicStringSplitArray = strsplit(topicPath, '/');
+                            topicStringSplitArray = strsplit(topicSubPath, '/');
+                            
+                            % Drop the last sub-string (e.g. 'Dim 1', 'Dim 2', etc.) in order
+                            % to construct the topic accessor function (see below).
+                            % topicSubStrings = {topicStringSplitArray{find(strcmp(topicStringSplitArray, 'lwr_data'))+1:end-1}};
+                            if ~isempty(regexp(topicStringSplitArray{end}, 'Dim \d*'))
+                                topicSubStrings = topicStringSplitArray(1:end-1);
+                            else
+                                topicSubStrings = topicStringSplitArray(1:end);
+                            end
+                            
+                            % Remove any empty strings...
+                            topicSubStrings = topicSubStrings(~cellfun('isempty',topicSubStrings));
+                            
+                            if ~isempty(topicSubStrings)
+                               
+                                % Set up accessor string for the matlab_rosbag msgs2mat
+                                % function...
+                                accessor = ['@(X) X.' strjoin(topicSubStrings, '.')];
 
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion = [];
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion.CONTENT =...
-                            'void';
+                                % Grab the sub-topic data from the rosbag using the
+                                % accessor string...
+                                tempDataArray =...
+                                    ros.msgs2mat(ADTBagMsg{iObjTopic}, eval(accessor));
+                                
+                                
+                                if ~isempty(tempDataArray)
+                                    
+                                    % We start with the object start pose...
+                                    if size(tempDataArray,1) >= 3
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position = [];
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position.CONTENT =...
+                                            tempDataArray(1:3, iObjStartFrame)';
+                                    end
+                                    
+                                    if size(tempDataArray,1) >= 7
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion = [];
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion.CONTENT =...
+                                            tempDataArray(4:7, iObjStartFrame)';
+                                    end
+                                    
+                                    
+                                    % ...and repeat for the end pose...
+                                    if size(tempDataArray,1) >= 3
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position = [];
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position.CONTENT =...
+                                            tempDataArray(1:3, iObjEndFrame)';
+                                    end
+                                    
+                                    if size(tempDataArray,1) >= 7
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion = [];
+                                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion.CONTENT =...
+                                            tempDataArray(4:7, iObjEndFrame)';
+                                    end
+                                    
+                                end
+                                
+                            end
 
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability = [];
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability.CONTENT =...
-                            'void';                                               
                         
-                        % ...and repeat for the end pose...
-                        foo = findstr(ADTBagMsg{iObjTopic}{iObjEndFrame}.data, ObjLinks{ObjObjLinksTab(iObj)}.SearchString);
-                        ObjEndPoseString = ADTBagMsg{iObjTopic}{iObjEndFrame}.data(foo(end):end);
-                        ObjEndPoseString = ObjEndPoseString(size(ObjLinks{ObjObjLinksTab(iObj)}.SearchString,2)+1:end);
-                        ObjEndPoseTMat = [reshape(str2num(ObjEndPoseString),4,3)'; [0 0 0 1]];
-                        
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position = [];
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position.CONTENT =...
-                            ObjEndPoseTMat(1:3, end)';
+                        % If the topic data type is string-based, we assume
+                        % that a search string has been provided to help
+                        % pull the data out of the strings, e.g.
+                        % 'faceplate' for the faceplate object, which would
+                        % be followed by a string of numbers representing
+                        % the pose and orientation.
+                        %
+                        % WARNING: This is pretty hacky and may break soon.
+                        % Based on current implementation of object pose
+                        % topic publishing.
+                        else
+                            
+                            % We start with the object start pose...
+                            foo = findstr(ADTBagMsg{iObjTopic}{iObjStartFrame}.data, ObjLinks{ObjObjLinksTab(iObj)}.SearchString);
+                            ObjStartPoseString = ADTBagMsg{iObjTopic}{iObjStartFrame}.data(foo(end):end);
+                            ObjStartPoseString = ObjStartPoseString(size(ObjLinks{ObjObjLinksTab(iObj)}.SearchString,2)+1:end);
+                            ObjStartPoseTMat = [reshape(str2num(ObjStartPoseString),4,3)'; [0 0 0 1]];
 
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion = [];
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion.CONTENT =...
-                            'void';
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position = [];
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.position.CONTENT =...
+                                ObjStartPoseTMat(1:3, end)';
 
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability = [];
-                        XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability.CONTENT =...
-                            'void';
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion = [];
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.quaternion.CONTENT =...
+                                'void';
+
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability = [];
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.pose.pose_DASH_reliability.CONTENT =...
+                                'void';                                               
+
+                            % ...and repeat for the end pose...
+                            foo = findstr(ADTBagMsg{iObjTopic}{iObjEndFrame}.data, ObjLinks{ObjObjLinksTab(iObj)}.SearchString);
+                            ObjEndPoseString = ADTBagMsg{iObjTopic}{iObjEndFrame}.data(foo(end):end);
+                            ObjEndPoseString = ObjEndPoseString(size(ObjLinks{ObjObjLinksTab(iObj)}.SearchString,2)+1:end);
+                            ObjEndPoseTMat = [reshape(str2num(ObjEndPoseString),4,3)'; [0 0 0 1]];
+
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position = [];
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.position.CONTENT =...
+                                ObjEndPoseTMat(1:3, end)';
+
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion = [];
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.quaternion.CONTENT =...
+                                'void';
+
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability = [];
+                            XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.pose.pose_DASH_reliability.CONTENT =...
+                                'void';
+                            
+                        end
                         
                     % ...otherwise output 'void'.
                     else
@@ -1203,17 +1296,16 @@ function varargout = adttool(BagSpec, varargin)
     %------------------
 
     function index = findtopic(TopicNames, Topic, varargin)
-        
-        if isempty(Topic)
-            index = 0;
-            return;
-        end
 
         % Defaults
         cmpfunc = @strcmp;
+        reverse = false;
 
         if nargin > 2
             switch lower(varargin{1})
+                case {'revfuzzy', 'revstrfind'}
+                    cmpfunc = @strfind;
+                    reverse = true;
                 case {'fuzzy', 'strfind'},
                     cmpfunc = @strfind;
                 case {'exact', 'strcmpi'},
@@ -1229,9 +1321,16 @@ function varargout = adttool(BagSpec, varargin)
 
             found = false;
 
-            if cmpfunc(TopicNames{index}, Topic)
-                found = true;
-                break;
+            if ~reverse
+                if cmpfunc(TopicNames{index}, Topic)
+                    found = true;
+                    break;
+                end
+            else
+                if cmpfunc(Topic, TopicNames{index})
+                    found = true;
+                    break;
+                end
             end
 
             if ~found

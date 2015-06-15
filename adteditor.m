@@ -22,7 +22,7 @@ function varargout = adteditor(varargin)
 
 % Edit the above text to modify the response to help adteditor
 
-% Last Modified by GUIDE v2.5 20-Apr-2015 17:42:20
+% Last Modified by GUIDE v2.5 19-May-2015 19:45:36
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -111,6 +111,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         handles.Data.TreeModel = [];
         handles.Data.hTree = [];
         handles.Data.hTreeContainer = [];
+        handles.Data.topicTreeDimLimit = 10;
 
         % Checkbox stuff...
         handles.Data.javaImage_checked = [];
@@ -146,6 +147,9 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         handles.Data.iCurrentFrame = 1;
         handles.Data.DownPoint = [0,0];
         handles.Data.CurrentPoint = [0,0];
+        
+        % Current timing topic...
+        handles.Data.iTimingTopic = 1;
 
         % Current timestep in bag...
         handles.Data.currenttimestep = 0;
@@ -153,7 +157,8 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         % Flags...
         handles.Data.updateplots = true;    
         handles.Data.fileinputspecified = false;
-        handles.Data.alreadyrunning = true;        
+        handles.Data.alreadyrunning = true;
+        handles.Data.isgrabbinghandacttopic = false;
 
         % Let's roll out...
         fprintf('\nStarting ADT editor...\n');
@@ -262,50 +267,65 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
                 % Grab the file spec. from the XML...
                 BagFileSpec = handles.Data.XML.recording_DASH_data;
                 
-                % Break it down...
-                [BagDirName BagFileName BagFileExt] = fileparts(BagFileSpec);
-                                
-                if isempty(BagDirName)
-                    handles.Data.BagDirName = handles.Data.XMLDirName;                    
-                else
-                    handles.Data.BagDirName = BagDirName;                    
-                end
+                if ~isempty(BagFileSpec)
                 
-                handles.Data.BagFileName = [BagFileName BagFileExt];
-                
-                if exist(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), 'file')
-                    
-                    % Ask if we should load the ros bag...
-                    choice = questdlg(['A ROS bag file associated with this ADT was found. '...
-                                       '(' fullfile(handles.Data.BagDirName, handles.Data.BagFileName) ') '...
-                                       'Would you like to load the ROS bag? (Note: this could take some time!)'],...
-                                       'Load ROS bag file?',...
-                                       'Yes','No','No');
-                                  
-                    % Handle response
-                    switch choice
-                        case 'Yes'
-                            
-                           % Load ros bag file...
-                            [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
-                                loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));
+                    % Break it down...
+                    [BagDirName BagFileName BagFileExt] = fileparts(BagFileSpec);
 
-                        case 'No'
-                            
-                            % Do nothing...
-                            display('adteditor: No ros bag file loaded!');
+                    if isempty(BagDirName)
+                        handles.Data.BagDirName = handles.Data.XMLDirName;                    
+                    else
+                        handles.Data.BagDirName = BagDirName;                    
                     end
-                end                
-            end
-        
-        elseif ~isempty(handles.Data.BagFileName)
-            
-            % Load ros bag file...
-            [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
-                loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));            
 
-        else            
-            display('adteditor: No file specified!');
+                    handles.Data.BagFileName = [BagFileName BagFileExt];
+
+                    if exist(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), 'file')
+
+                        % Ask if we should load the ros bag...
+                        choice = questdlg(['A ROS bag file associated with this ADT was found. '...
+                                           '(' fullfile(handles.Data.BagDirName, handles.Data.BagFileName) ') '...
+                                           'Would you like to load the ROS bag? (Note: this could take some time!)'],...
+                                           'Load ROS bag file?',...
+                                           'Yes','No','No');
+
+                        % Handle response
+                        switch choice
+                            case 'Yes'
+
+                               % Load ros bag file...
+                                [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
+                                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));
+
+                            case 'No'
+
+                                % Do nothing...
+                                errordlg('No ROS bag file loaded!');
+                        end
+                    end
+                    
+                else
+                    
+                    errordlg('No ROS bag file specified in ADT XML file!');
+                    
+                end
+
+            elseif ~isempty(handles.Data.BagFileName)
+
+                % Load ros bag file...
+                [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
+                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));            
+
+            else
+                
+                errordlg('No ROS bag file specified!');
+                
+            end
+            
+        else
+            
+            errordlg('No XML file specified!');
+            
         end
                 
     end
@@ -364,20 +384,31 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 
             handles.Data.iCurrentFrame = 1;
             handles.Data.currenttimestep =...
-                handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
+                handles.Data.ADTBagMeta{handles.Data.iTimingTopic}{handles.Data.iCurrentFrame}.time.time;
 
             [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);                
 
+            % Check for the JSI image topic format first...            
             handles.Data.iRGBTopic = findtopic(handles.Data.ADTBagTopicNames, 'rgb/image_color', 'fuzzy');
+            
+            % Otherwise try the AAU image topic format...
+            if handles.Data.iRGBTopic == 0                
+                handles.Data.iRGBTopic = findtopic(handles.Data.ADTBagTopicNames, '/carmineAAU/rgb/image_rect_color', 'fuzzy');
+            end                                     
 
+            % If we have a valid image topic, set up a preview figure and
+            % perform the first update...
             if handles.Data.iRGBTopic ~= 0 && ~isfield(handles, 'hImageFig')                
                 handles.hImageFig = figure;
                 handles.hImageAxes = axes;
                 [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);
             end                
 
+            % Check for the JSI depth topic format...
             handles.Data.iDepthTopic = findtopic(handles.Data.ADTBagTopicNames, 'depth_registered/image_raw', 'fuzzy');
 
+            % If we have a valid image topic, set up a preview figure and
+            % perform the first update...
             if handles.Data.iDepthTopic ~= 0 && ~isfield(handles, 'hDepthImageFig')
                 handles.hDepthImageFig = figure;
                 handles.hDepthImageAxes = axes;
@@ -446,10 +477,11 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
             handles.Data.TopicMap = containers.Map;
 
             % Search for the robot data topic...
-            handles.Data.iDataTopic = findtopic(handles.Data.ADTBagTopicNames, 'lwr_data', 'fuzzy');
+            % handles.Data.iDataTopic = findtopic(handles.Data.ADTBagTopicNames, 'lwr_data', 'fuzzy');
 
             % Recursively build topic tree from the data topic root...
-            handles.Data.Tree = buildtopictree(hObject, eventdata, handles, handles.Data.iDataTopic);
+            % handles.Data.Tree = buildtopictree(hObject, eventdata, handles, handles.Data.iDataTopic);
+            handles.Data.Tree = buildtopictree(hObject, eventdata, handles);
 
             % set treeModel
             handles.Data.TreeModel = DefaultTreeModel( handles.Data.Tree );
@@ -484,19 +516,26 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
             % set(handles.Data.Tree, 'Units', 'normalized', 'position', [0 0 1 0.5]);
             % set(tree, 'NodeSelectedCallback', @selected_cb );
             % function selected_cb( tree, ev )
+            Tree = handles.Data.Tree;
+            % set(handles.Data.hTree, 'NodeSelectedCallback',...
+            %     @(Tree, eventdata, hObject)adteditor('CheckBoxSelected_Callback', handles.Data.Tree, eventdata, hObject, guidata(hObject)) );
             set(handles.Data.hTree,'NodeSelectedCallback', {@CheckBoxSelected_Callback, hObject, guidata(hObject)});
-            % set(handles.Data.hTree, 'NodeSelectedCallback', @(hObject,eventdata)adteditor('CheckBoxSelected_Callback', hObject, guidata(hObject)) );
 
             % make root the initially selected node
             % handles.Data.hTree.setSelectedNode(handles.Data.Tree);
+            
+            % Update handles structure
+            guidata(hObject, handles);
 
             % MousePressedCallback is not supported by the uitree, but by jtree
             % set(jtree, 'MousePressedCallback', @mousePressedCallback);
             % function mousePressedCallback(hTree, eventData) %,additionalVar)
+            % function NodeMousePressed_Callback(tree, eventdata, hObject, handles)
             % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject,eventdata)adteditor('NodeMousePressed_Callback',hObject,eventdata,guidata(hObject)));
             % set(handles.Data.hJTree, 'MousePressedCallback', @(hObject)adteditor('NodeMousePressed_Callback', guidata(hObject)));
-            % set(handles.Data.hJTree, 'MousePressedCallback', @(handles.Data.hTree, eventdata)adteditor('NodeMousePressed_Callback', handles.Data.hTree, eventdata));
-            set(handles.Data.hJTree,'MousePressedCallback', {@NodeMousePressed_Callback, guidata(hObject)});
+            % set(handles.Data.hJTree, 'MousePressedCallback',...
+            %     @(handles, eventdata, hObject)adteditor('NodeMousePressed_Callback', handles.Data.hTree, eventdata, hObject, guidata(hObject)));
+            set(handles.Data.hJTree,'MousePressedCallback', {@NodeMousePressed_Callback, hObject, guidata(hObject)});
 
             % figure(handles.MainFig, 'pos',[300,300,150,150]);
             set(handles.Data.hTreeContainer, 'Parent',handles.MainFig);
@@ -546,7 +585,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 % NodeMousePressed_Callback
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % function NodeMousePressed_Callback(hObject, eventdata)
-function NodeMousePressed_Callback(hObject, eventdata, handles)
+function NodeMousePressed_Callback(tree, eventdata, hObject, handles)
 % if eventData.isMetaDown % right-click is like a Meta-button
 % if eventData.getClickCount==2 % how to detect double clicks
 
@@ -556,23 +595,29 @@ function NodeMousePressed_Callback(hObject, eventdata, handles)
     treePath = handles.Data.hJTree.getPathForLocation(clickX, clickY);
     % check if a node was clicked
     if ~isempty(treePath)
-      % check if the checkbox was clicked
-      if clickX <= (handles.Data.hJTree.getPathBounds(treePath).x+handles.Data.iconWidth)
-        node = treePath.getLastPathComponent;
-        nodeValue = node.getValue;
-        % as the value field is the selected/unselected flag,
-        % we can also use it to only act on nodes with these values
-        switch nodeValue
-          case 'selected'
-            node.setValue('unselected');
-            node.setIcon(handles.Data.javaImage_unchecked);
-            handles.Data.hJTree.treeDidChange();
-          case 'unselected'
-            node.setValue('selected');
-            node.setIcon(handles.Data.javaImage_checked);
-            handles.Data.hJTree.treeDidChange();
+        
+        % Check if we need to update hand_act_topic_link_textbox
+        if get(handles.hand_act_topic_link_toggle, 'Value')
+            set(handles.hand_act_topic_link_textbox, 'String', node2path(treePath));
         end
-      end
+        
+        % Check if the checkbox was clicked
+        if clickX <= (handles.Data.hJTree.getPathBounds(treePath).x+handles.Data.iconWidth)
+            node = treePath.getLastPathComponent;
+            nodeValue = node.getValue;
+            % as the value field is the selected/unselected flag,
+            % we can also use it to only act on nodes with these values
+            switch nodeValue
+              case 'selected'
+                node.setValue('unselected');
+                node.setIcon(handles.Data.javaImage_unchecked);
+                handles.Data.hJTree.treeDidChange();
+              case 'unselected'
+                node.setValue('selected');
+                node.setIcon(handles.Data.javaImage_checked);
+                handles.Data.hJTree.treeDidChange();
+            end
+        end
     end
     
     % Update handles structure
@@ -612,61 +657,93 @@ function CheckBoxSelected_Callback( tree, ev, hObject, handles)
         
     else                
         
+        %
         % Create the accessor string for the selected sub-topic...
-        topicStringSplitArray = strsplit(topicPath, '/');
-        topicSubStrings = {topicStringSplitArray{find(strcmp(topicStringSplitArray, 'lwr_data'))+1:end-1}};
+        %
+                
+        % Search for the topic names inside the topic path and find the
+        % right one...
+        iDataTopic = findtopic(handles.Data.ADTBagTopicNames, topicPath, 'revfuzzy');
         
-        if ~isempty(topicSubStrings)
-            
-            % Create temp struct for TopicMap hash table assignment...
-            TempStruct = [];
-            
-            TempStruct.topicPath = topicPath;
-            
-            % Set up accessor string for the matlab_rosbag msgs2mat
-            % function...
-            TempStruct.accessor = ['@(X) X.' strjoin(topicSubStrings, '.')];
-            
-            % Grab the sub-topic data from the rosbag using the
-            % accessor string...
-            tempDataArray =...
-                ros.msgs2mat(handles.Data.ADTBagMsg{handles.Data.iDataTopic}, eval(TempStruct.accessor));
+        if iDataTopic > 0                        
+        
+            % Remove this main topic path from topicPath and find the sub-path...
+            iTopicStringStart = strfind(topicPath, handles.Data.ADTBagTopicNames{iDataTopic});
+            topicSubPath = topicPath(iTopicStringStart + size(handles.Data.ADTBagTopicNames{iDataTopic},2):end);
 
-            if ~isempty(tempDataArray)                
-                
-                % If there is more than one dimension, we need to select
-                % the right one...
-                if size(tempDataArray,1) > 1
-                    dimStringSplitArray = strsplit(topicStringSplitArray{end});
-                    TempStruct.dataArray = tempDataArray(str2num(dimStringSplitArray{end}), :);
-                else
-                    TempStruct.dataArray = tempDataArray;
-                end                                    
-                
-                % If the array is empty, then something has gone wrong and
-                % we should not try to plot it.
-                if ~isempty(TempStruct.dataArray)
-                    
-                    TempStruct.isLoaded = true;
-                    TempStruct.isPlotted = true;
-                    TempStruct.isSelected = true;
-                    
-                    TempStruct.plotColour = [rand rand rand];
+            % Split up the topicSubPath into substrings...
+            % topicStringSplitArray = strsplit(topicPath, '/');
+            topicStringSplitArray = strsplit(topicSubPath, '/');
 
-                    handles.Data.TopicMap(topicPath) = TempStruct;
+            % Drop the last sub-string (e.g. 'Dim 1', 'Dim 2', etc.) in order
+            % to construct the topic accessor function (see below).
+            % topicSubStrings = {topicStringSplitArray{find(strcmp(topicStringSplitArray, 'lwr_data'))+1:end-1}};
+            topicSubStrings = topicStringSplitArray(1:end-1);
 
-                    handles.Data.updateplots = true;
+            % Remove any empty strings...
+            topicSubStrings = topicSubStrings(~cellfun('isempty',topicSubStrings));
 
-                    % Update handles structure
-                    guidata(hObject, handles);
+            if ~isempty(topicSubStrings)
 
-                    % Call for a plot update...
-                    [hObject, eventdata, handles] = updatemainplot(hObject, ev, handles);
-                    
+                % Create temp struct for TopicMap hash table assignment...
+                TempStruct = [];
+
+                TempStruct.topicPath = topicPath;
+
+                % Set up accessor string for the matlab_rosbag msgs2mat
+                % function...
+                TempStruct.accessor = ['@(X) X.' strjoin(topicSubStrings, '.')];
+
+                % Grab the sub-topic data from the rosbag using the
+                % accessor string...
+                tempDataArray =...
+                    ros.msgs2mat(handles.Data.ADTBagMsg{iDataTopic}, eval(TempStruct.accessor));
+
+                if ~isempty(tempDataArray)                
+
+                    % If there is more than one dimension, we need to select
+                    % the right one...
+                    if size(tempDataArray,1) > 1
+                        dimStringSplitArray = strsplit(topicStringSplitArray{end});
+                        TempStruct.dataArray = tempDataArray(str2num(dimStringSplitArray{end}), :);
+                    else
+                        TempStruct.dataArray = tempDataArray;
+                    end                                    
+
+                    % If the array is empty, then something has gone wrong and
+                    % we should not try to plot it.
+                    if ~isempty(TempStruct.dataArray)
+
+                        TempStruct.isLoaded = true;
+                        TempStruct.isPlotted = true;
+                        TempStruct.isSelected = true;
+
+                        TempStruct.plotColour = [rand rand rand];
+
+                        handles.Data.TopicMap(topicPath) = TempStruct;
+
+                        handles.Data.updateplots = true;
+
+                        % Update handles structure
+                        guidata(hObject, handles);
+
+                        % Call for a plot update...
+                        [hObject, eventdata, handles] = updatemainplot(hObject, ev, handles);
+                        
+                        % If we've gotten this far, we might need to update
+                        % the timing topic...
+                        if size(handles.Data.ADTBagMeta{iDataTopic},2) >...
+                           size(handles.Data.ADTBagMeta{handles.Data.iTimingTopic},2)
+                        
+                            handles.Data.iTimingTopic = iDataTopic;
+                       
+                        end
+
+                    end
+
                 end
-                            
+
             end
-            
         end
 
     end
@@ -690,18 +767,20 @@ function path = node2path(node)
     end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% buildtopictree 
+% buildtopictree
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin)
+function Tree = buildtopictree(hObject, eventdata, handles, varargin)
 
-    if nargin > 4
+    if nargin > 3
         
         Tree = varargin{1};
         TopicString = varargin{2};
         Topic = eval(TopicString);
         
+        % If the topic is a struct, there are two possibilities...
         if isstruct(Topic)
             
+            % If it's a valid struct, build a subtree from each field...
             if size(Topic,2) > 0
             
                 TreeRootFields = fields(Topic);
@@ -711,10 +790,11 @@ function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin
                     SubTree = uitreenode('v0', TreeRootFields{iField}, TreeRootFields{iField}, [], true);
 
                     Tree.setAllowsChildren(true);
-                    Tree.add(buildtopictree(hObject, eventdata, handles, iDataTopic, SubTree,...
+                    Tree.add(buildtopictree(hObject, eventdata, handles, SubTree,...
                              [TopicString '.' TreeRootFields{iField}]));                    
                 end
                 
+            % If we hit an empty struct, place leaf nodes for each field...    
             else
                 
                 TreeRootFields = fields(Topic);
@@ -728,7 +808,122 @@ function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin
                 end
                 
             end
+        
+        % If the topic is an array, place leaf notes for each dimension...
+        elseif size(Topic,1) > 1
             
+            % topicStringSplitArray = strsplit(TopicString,'.');
+            % TopicStringLeaf = topicStringSplitArray{end};
+            
+            % SubTree = uitreenode('v0', TopicStringLeaf, TopicStringLeaf, [], true);
+            
+            % Make sure we're not dealing with an image or there will be
+            % too many dimensions...
+            if size(Topic,1) <= handles.Data.topicTreeDimLimit
+            
+                for iRow = 1:size(Topic,1)
+                    Tree.setAllowsChildren(true);
+                    Leaf = uitreenode('v0', 'unselected', ['Dim ' num2str(iRow)], [], false);
+                    Leaf.setIcon(handles.Data.javaImage_unchecked);
+                    Tree.add(Leaf);
+                end
+                
+            end
+            
+            % Tree.setAllowsChildren(true);
+            % Tree.add(SubTree);
+        
+        % If the topic is a singleton, do nothing...
+        else
+            
+            % topicStringSplitArray = strsplit(TopicString,'.');
+            % TopicStringLeaf = topicStringSplitArray{end};
+            % 
+            % Tree.setAllowsChildren(true);
+            % Tree.add(uitreenode('v0', TopicStringLeaf, TopicStringLeaf, [], false));
+            
+        end
+        
+    else
+               
+        % Make node...
+        Tree = uitreenode('v0', 'root', 'root', [], true);
+
+        for iTopic = 1:size(handles.Data.ADTBagTopicNames,2)
+
+            if iscell(handles.Data.ADTBagMsg{iTopic})
+
+                SubTree = uitreenode('v0', handles.Data.ADTBagTopicNames{iTopic},...
+                                        handles.Data.ADTBagTopicNames{iTopic}, [], true);
+
+                % if isstruct(handles.Data.ADTBagMsg{iTopic}{1})
+                % 
+                %     TreeRootFields = fields(handles.Data.ADTBagMsg{iTopic}{1});
+                % 
+                %     for iField = 1:size(TreeRootFields,1)
+                % 
+                %         SubTree = uitreenode('v0', TreeRootFields{iField}, TreeRootFields{iField}, [], true);
+                % 
+                %         Tree.setAllowsChildren(true);
+                %         Tree.add(buildtopictree(hObject, eventdata, handles, SubTree,...
+                %                  ['handles.Data.ADTBagMsg{' num2str(iTopic) '}{1}.' TreeRootFields{iField}]));                    
+                %     end
+                % 
+                % end
+                
+                Tree.setAllowsChildren(true);
+                Tree.add(buildtopictree(hObject, eventdata, handles, SubTree,...
+                                 ['handles.Data.ADTBagMsg{' num2str(iTopic) '}{1}'])); 
+                
+            end
+        end
+        
+    end        
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% buildspecifictopictree 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function Tree = buildspecifictopictree(hObject, eventdata, handles, iDataTopic, varargin)
+
+    if nargin > 4
+        
+        Tree = varargin{1};
+        TopicString = varargin{2};
+        Topic = eval(TopicString);
+        
+        % If the topic is a struct, there are two possibilities...
+        if isstruct(Topic)
+            
+            % If it's a valid struct, build a subtree from each field...
+            if size(Topic,2) > 0
+            
+                TreeRootFields = fields(Topic);
+
+                for iField = 1:size(TreeRootFields,1)
+
+                    SubTree = uitreenode('v0', TreeRootFields{iField}, TreeRootFields{iField}, [], true);
+
+                    Tree.setAllowsChildren(true);
+                    Tree.add(buildtopictree(hObject, eventdata, handles, iDataTopic, SubTree,...
+                             [TopicString '.' TreeRootFields{iField}]));                    
+                end
+            
+            % If we hit an empty struct, place leaf nodes for each field...
+            else
+                
+                TreeRootFields = fields(Topic);
+
+                for iField = 1:size(TreeRootFields,1)
+                    Tree.setAllowsChildren(true);
+                    Leaf = uitreenode('v0', 'unselected', TreeRootFields{iField}, [], false);
+                    Leaf.setIcon(handles.Data.javaImage_unchecked);
+                    % Tree.add(uitreenode('v0', TreeRootFields{iField}, TreeRootFields{iField}, [], false));                
+                    Tree.add(Leaf);
+                end
+                
+            end
+        
+        % If the topic is an array, place leaf notes for each dimension...
         elseif size(Topic,1) > 1
             
             topicStringSplitArray = strsplit(TopicString,'.');
@@ -745,7 +940,8 @@ function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin
             
             % Tree.setAllowsChildren(true);
             % Tree.add(SubTree);
-            
+        
+        % If the topic is a singleton, do nothing...
         else
             
             % topicStringSplitArray = strsplit(TopicString,'.');
@@ -753,6 +949,7 @@ function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin
             % 
             % Tree.setAllowsChildren(true);
             % Tree.add(uitreenode('v0', TopicStringLeaf, TopicStringLeaf, [], false));
+            % display('nothing');
             
         end
         
@@ -781,6 +978,7 @@ function Tree = buildtopictree(hObject, eventdata, handles, iDataTopic, varargin
         end
         
     end        
+    
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % updatemainplot 
@@ -1208,9 +1406,13 @@ function index = findtopic(TopicNames, Topic, varargin)
 
     % Defaults
     cmpfunc = @strcmp;
+    reverse = false;
 
     if nargin
         switch lower(varargin{1})
+            case {'revfuzzy', 'revstrfind'}
+                cmpfunc = @strfind;
+                reverse = true;
             case {'fuzzy', 'strfind'},
                 cmpfunc = @strfind;
             case {'exact', 'strcmpi'},
@@ -1226,9 +1428,16 @@ function index = findtopic(TopicNames, Topic, varargin)
 
         found = false;
 
-        if cmpfunc(TopicNames{index}, Topic)
-            found = true;
-            break;
+        if ~reverse
+            if cmpfunc(TopicNames{index}, Topic)
+                found = true;
+                break;
+            end
+        else
+            if cmpfunc(Topic, TopicNames{index})
+                found = true;
+                break;
+            end
         end
 
         if ~found
@@ -1327,7 +1536,7 @@ function MainAxes_ButtonDownFcn(hObject, eventdata, handles)
     % Update current frame from click location and time step from bag...    
     handles.Data.iDownFrame = round(handles.Data.DownPoint(1,1));    
     % handles.Data.currenttimestep =...
-    %     handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
+    %     handles.Data.ADTBagMeta{handles.Data.iTimingTopic}{handles.Data.iCurrentFrame}.time.time;
     
     [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);
     
@@ -1359,10 +1568,10 @@ function MainFig_ButtonMotionFcn(hObject, eventdata, handles)
     % Update current frame from click location and time step from bag...
     % handles.Data.iCurrentFrame = round(handles.Data.CurrentPoint(1,1));
     
-    % if handles.Data.iCurrentFrame <= size(handles.Data.ADTBagMeta{1},2) &&...
+    % if handles.Data.iCurrentFrame <= size(handles.Data.ADTBagMeta{handles.Data.iTimingTopic},2) &&...
     %    handles.Data.iCurrentFrame >= 1
     %     handles.Data.currenttimestep =...
-    %         handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;   
+    %         handles.Data.ADTBagMeta{handles.Data.iTimingTopic}{handles.Data.iCurrentFrame}.time.time;   
     % end
         
     [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, handles);
@@ -1389,15 +1598,21 @@ function MainFig_ButtonUpFcn(hObject, eventdata, handles)
 
         % Update current frame from click location and time step from bag...
         handles.Data.iCurrentFrame = round(handles.Data.CurrentPoint(1,1));
-        handles.Data.currenttimestep =...
-            handles.Data.ADTBagMeta{1}{handles.Data.iCurrentFrame}.time.time;
+        
+        % Make sure we're not out of bounds (the mouse is a tricky beast!)
+        if handles.Data.iCurrentFrame <= size(handles.Data.ADTBagMeta{handles.Data.iTimingTopic},2)
+            
+            handles.Data.currenttimestep =...
+                handles.Data.ADTBagMeta{handles.Data.iTimingTopic}{handles.Data.iCurrentFrame}.time.time;
 
-        if handles.Data.iRGBTopic ~= 0
-            [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);    
-        end
+            if handles.Data.iRGBTopic ~= 0
+                [hObject, eventdata, handles] = updatecameraimage(hObject, eventdata, handles);    
+            end
 
-        if handles.Data.iDepthTopic ~= 0
-            [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);    
+            if handles.Data.iDepthTopic ~= 0
+                [hObject, eventdata, handles] = updatedepthimage(hObject, eventdata, handles);    
+            end
+            
         end
 
         % Unset button-motion callback...
@@ -1805,6 +2020,43 @@ function SaveMenuItem_Callback(hObject, eventdata, handles)
         % SECLinkArgString(end-1:end) = [];
         SECLinkArgs = strread(SECLinkArgString, '%s');
         
+        % Build ObjLink arg string for hand-act...
+        HandActObjLinkArgs = [];
+        HandActTopicLinkString = get(handles.hand_act_topic_link_textbox, 'String');
+        
+        if ~isempty(HandActTopicLinkString)
+            
+            % Reomve 'root' from the beginning if necessary...
+            if strcmp(HandActTopicLinkString(1:4), 'root') ~= 0
+                HandActTopicLinkString = HandActTopicLinkString(5:end);
+            end
+            
+            % Find the name of the hand object in SECLinks...
+            Objects = unique({SECLinkFirstObjs{:} SECLinkSecondObjs{:}});
+            iHandObject = 0;
+            for iObject = 1:size(Objects,2)
+                % Assume it's the first one we find...
+                if ~isempty(findstr(Objects{iObject}, 'hand'))
+                    iHandObject = iObject;
+                    break;
+                end
+            end
+            
+            % There should be a default...
+            if iHandObject == 0
+                HandObject = 'hand'
+            else
+                HandObject = Objects{iHandObject};
+            end
+            
+            % Build the arg string...
+            HandActObjLinkArgString =...
+                ['objlink ' HandActTopicLinkString ' [] ' HandObject];
+            
+            HandActObjLinkArgs = strread(HandActObjLinkArgString, '%s');
+            
+        end
+        
         % Build SEC args...
         if ~isempty(handles.Data.SECButtons)
             for iRow = 1:size(handles.Data.SECButtons,1)
@@ -1819,6 +2071,10 @@ function SaveMenuItem_Callback(hObject, eventdata, handles)
         
         if ~isempty(SECLinkArgs)
             Args = {Args{:} SECLinkArgs{:}};
+        end
+        
+        if ~isempty(HandActObjLinkArgs)
+            Args = {Args{:} HandActObjLinkArgs{:}};
         end
         
         if ~isempty(handles.Data.ActionChunks)
@@ -1883,3 +2139,18 @@ function OpenMenuItem_Callback(hObject, eventdata, handles)
     guidata(hObject, handles);
     
     adteditor_OpeningFcn(hObject, eventdata, handles, fullfile(PathName, FileName));
+
+
+% --- Executes on button press in hand_act_topic_link_toggle.
+function hand_act_topic_link_toggle_Callback(hObject, eventdata, handles)
+% hObject    handle to hand_act_topic_link_toggle (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of hand_act_topic_link_toggle
+
+    % Invert the flag...
+    % handles.Data.isgrabbinghandacttopic = get(hObject, 'Value');
+    
+    % Update handles structure
+    % guidata(hObject, handles);
