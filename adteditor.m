@@ -102,8 +102,13 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         handles.Data.hTopicPlots = [];
         handles.Data.hTrackingLine = [];
         handles.Data.hSelection = [];
-        handles.Data.hSelectionContextMenu = [];
-        handles.Data.hSelectionContextMenuItems = [];
+        % handles.Data.hSelectionContextMenu = [];
+        % handles.Data.hSelectionContextMenuItems = [];
+        
+        % Set up selection context menu...        
+        handles.Data.hSelectionContextMenu = uicontextmenu;
+        handles.Data.hSelectionContextMenuItems(1) =...
+            uimenu(handles.Data.hSelectionContextMenu, 'label', 'New Action Chunk');                  
 
         % Topic tree stuff...
         handles.Data.Tree = [];
@@ -123,8 +128,13 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         handles.Data.ActionChunkNames = [];
         handles.Data.hActionChunks = [];
         handles.Data.hActionChunksText = [];
-        handles.Data.hActionChunkContextMenu = [];
-        handles.Data.hActionChunkContextMenuItems = [];
+        % handles.Data.hActionChunkContextMenu = [];
+        % handles.Data.hActionChunkContextMenuItems = [];
+        
+        % Set up action chunk context menu...        
+        handles.Data.hActionChunkContextMenu = uicontextmenu;
+        handles.Data.hActionChunkContextMenuItems(1) =...
+            uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
 
         % SEC...
         handles.Data.SECButtons = [];
@@ -159,6 +169,12 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
         handles.Data.fileinputspecified = false;
         handles.Data.alreadyrunning = true;
         handles.Data.isgrabbinghandacttopic = false;
+        
+        % function_handle callbacks...
+        handles.Data.SetTextToEditing = @(~,~,x) set(x, 'editing', 'on');
+        
+        % Update handles structure
+        guidata(hObject, handles);
 
         % Let's roll out...
         fprintf('\nStarting ADT editor...\n');
@@ -283,25 +299,196 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
                     if exist(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), 'file')
 
                         % Ask if we should load the ros bag...
-                        choice = questdlg(['A ROS bag file associated with this ADT was found. '...
+                        rosbagchoice = questdlg(['A ROS bag file associated with this ADT was found. '...
                                            '(' fullfile(handles.Data.BagDirName, handles.Data.BagFileName) ') '...
                                            'Would you like to load the ROS bag? (Note: this could take some time!)'],...
                                            'Load ROS bag file?',...
                                            'Yes','No','No');
 
                         % Handle response
-                        switch choice
+                        switch rosbagchoice
+                            
                             case 'Yes'
 
-                               % Load ros bag file...
-                                [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
+                                % Load ros bag file...
+                                [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg,...
+                                 handles.Data.ADTBagInfo, handles.Data.ADTBagTopicNames, handles.Data.ADTBagTopicSizes,...
+                                 handles.Data.ADTBagTopicTypes] =...
                                     loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), true);
+                                
+                                %
+                                % Populate the SECLink list boxes etc...
+                                %
+                                set(handles.SECLink_Topic_DropDown, 'string', {'None' handles.Data.ADTBagTopicNames{:}});
+                                set(handles.SECLink_Topic_ListBox, 'string', {'None', 'None', 'None'});
+                                set(handles.SECLink_FirstObj_TextBox, 'string', 'First Object');
+                                set(handles.SECLink_FirstObj_ListBox, 'string', {'hand', 'main-object', 'main-object'});
+                                set(handles.SECLink_SecondObj_TextBox, 'string', 'Second Object');
+                                set(handles.SECLink_SecondObj_ListBox, 'string', {'main-object', 'primary-object', 'secondary-object'});
+
+                               % Search for action chunks...
+                               if isfield(handles.Data.XML, 'action_DASH_chunks')
+                                   % XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.timestamp
+                                   if isfield(handles.Data.XML.action_DASH_chunks, 'action_DASH_chunk')
+
+                                       % Ask if we should load the ros bag...
+                                       chunkchoice = questdlg(['Action chunks and SEC information were found for this ADT/ROS bag. '...
+                                                               '(' fullfile(handles.Data.BagDirName, handles.Data.BagFileName) ') '...
+                                                               'Would you like to load the action chunks and SEC?'],...
+                                                               'Load action chunks?',...
+                                                               'Yes','No','Yes');
+
+                                       switch chunkchoice
+
+                                           case 'Yes'
+
+                                                % Find a data topic in the bag...
+                                                %
+                                                % NOTE: We're going to cheat a little here.
+                                                % Since we don't know in advance what topic we
+                                                % should actually be using, we pick the longest one...
+                                                iDataTopic = 0;
+                                                maxtopiclength = 0;
+                                                for iTopic = 1:size(handles.Data.ADTBagMeta, 2)
+                                                    if size(handles.Data.ADTBagMeta{iTopic}, 2) >= maxtopiclength
+                                                        maxtopiclength = size(handles.Data.ADTBagMeta{iTopic}, 2);
+                                                        iDataTopic = iTopic;
+                                                    end
+                                                end
+
+                                                % Set the axis based on
+                                                % this...
+                                                axis([0 maxtopiclength 0 1]);
+
+                                                % Loop through action chunks...
+                                                for iChunk = 1:length(handles.Data.XML.action_DASH_chunks.action_DASH_chunk)
+
+                                                   % Find a valid object field in this chunk...
+                                                   ActionChunkFields = fields(handles.Data.XML.action_DASH_chunks.action_DASH_chunk(iChunk));
+                                                   ObjField = [];
+                                                   for iField = 1:size(ActionChunkFields,1)                                                       
+                                                       if isstruct(handles.Data.XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ActionChunkFields{iField}))
+                                                           ObjField = ActionChunkFields{iField};
+                                                           break;
+                                                       end
+                                                   end                                                                                                                                                         
+
+                                                   % If a valid object field was found in the XML and a valid
+                                                   % data topic was found in the ROS bag, we continue...
+                                                   if ~isempty(ObjField) && iDataTopic ~= 0 && maxtopiclength ~= 0
+
+                                                       % ...search for the start and end position timestamps in the
+                                                       % rosbag...
+                                                       iObjStartFrame = 0;
+                                                       iObjEndFrame = 0;
+                                                       for iFrame = 1:size(handles.Data.ADTBagMeta{iDataTopic}, 2)
+
+                                                           if handles.Data.ADTBagMeta{iDataTopic}{iFrame}.time.time >=...
+                                                              handles.Data.XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).start_DASH_point.timestamp...
+                                                               && ~iObjStartFrame
+                                                               iObjStartFrame = iFrame;                               
+                                                           end
+
+                                                           if handles.Data.ADTBagMeta{iDataTopic}{iFrame}.time.time >=...
+                                                              handles.Data.XML.action_DASH_chunks.action_DASH_chunk(iChunk).(ObjField).end_DASH_point.timestamp
+                                                               iObjEndFrame = iFrame;
+                                                               break;
+                                                           end
+                                                       end
+
+                                                       % Set up chunk coords...
+                                                       Axis = axis;                                                       
+                                                       XData(1) = iObjStartFrame;
+                                                       YData(1) = Axis(3);                                                       
+                                                       XData(2) = iObjEndFrame;
+                                                       YData(2) = Axis(3);                                                       
+                                                       XData(3) = iObjEndFrame;
+                                                       YData(3) = Axis(4);                                                       
+                                                       XData(4) = iObjStartFrame;
+                                                       YData(4) = Axis(4);                                                       
+
+                                                       % Draw a blue action chunk...
+                                                       handles.Data.hActionChunks{end+1} =...
+                                                            patch(XData,...
+                                                                  YData,...
+                                                                  [0 0 0.75],...                 
+                                                                  'Parent', handles.MainAxes);
+
+                                                        XData = sort(XData(1:2));
+
+                                                        % Draw a text box...
+                                                        handles.Data.hActionChunksText{end+1} =...
+                                                            text(XData(1) + abs((XData(2) - XData(1))/2),...
+                                                                 YData(1) + abs((YData(1) - YData(3))/2),...
+                                                                 handles.Data.XML.action_DASH_chunks.action_DASH_chunk(iChunk).context,...
+                                                                 'color', 'w',...
+                                                                 'BackgroundColor', [0 0 0.75],...
+                                                                 'HorizontalAlignment','center',...
+                                                                 'editing', 'on');
+
+                                                        % settexttoediting = @(~, ~) set(handles.Data.hActionChunksText{end}, 'editing', 'on');
+                                                        % set(handles.Data.hActionChunksText{end}, 'buttondownfcn', settexttoediting);                                                                        
+                                                        set(handles.Data.hActionChunksText{end}, 'buttondownfcn',...
+                                                            {handles.Data.SetTextToEditing, handles.Data.hActionChunksText{end}});
+
+                                                        % Send the blue action chunk to the bottom of the draw stack...
+                                                        uistack(handles.Data.hActionChunks{end}, 'bottom');      
+
+                                                        % Send the action chunk text to the top of the draw stack...
+                                                        uistack(handles.Data.hActionChunksText{end}, 'top');
+
+                                                        % Create a new action chunk...
+                                                        % handles.Data.ActionChunks{end+1}.iStartFrame = handles.
+
+                                                        % Update handles structure
+                                                        guidata(hObject, handles);
+
+                                                        % Attach a context menu...        
+                                                        set(handles.Data.hActionChunks{end}, 'uicontextMenu', handles.Data.hActionChunkContextMenu);
+                                                        set(handles.Data.hActionChunkContextMenuItems(1),'callback',...
+                                                            {@DeleteActionChunk_Callback, guidata(hObject), size(handles.Data.hActionChunks,2)});
+
+                                                   else
+
+                                                       errordlg('Invalid action chunks in ADT!');
+
+                                                   end
+
+                                                end
+                                                
+                                                % Update handles structure
+                                                guidata(hObject, handles);
+
+                                                % Update the SEC button panel...
+                                                [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles);
+                                                
+                                                % Grab SEC values from ADT...
+                                                SEC = [];
+                                                for iSECRow = 1:size(handles.Data.XML.anchor_DASH_points.SEC_DASH_line,1)
+                                                    SEC(iSECRow,:) = handles.Data.XML.anchor_DASH_points.SEC_DASH_line(iSECRow).CONTENT;
+                                                end
+                                                
+                                                % Set the values in the
+                                                % GUI...
+                                                for iSEC = 1:size(SEC(:),1)
+                                                    set(handles.Data.SECButtons(iSEC), 'Value', SEC(iSEC));
+                                                end
+
+                                           case 'No'
+
+                                               % Do nothing...
+                                       end
+
+                                   end
+                               end
+
 
                             case 'No'
 
                                 % Do nothing...
                                 errordlg('No ROS bag file loaded!');
                         end
+                        
                     end
                     
                 else
@@ -494,22 +681,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
             handles.Data.hTree.MultipleSelectionEnabled = true;
             % we often rely on the underlying java tree
             handles.Data.hJTree = handle(handles.Data.hTree.getTree, 'CallbackProperties');
-
-            % Set up selection context menu...        
-            handles.Data.hSelectionContextMenu = uicontextmenu;
-            handles.Data.hSelectionContextMenuItems(1) =...
-                uimenu(handles.Data.hSelectionContextMenu, 'label', 'New Action Chunk');
-
-            % Set up action chunk context menu...        
-            handles.Data.hActionChunkContextMenu = uicontextmenu;
-            handles.Data.hActionChunkContextMenuItems(1) =...
-                uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
-
-            % Set up action chunk context menu...
-            % handles.Data.hActionContextMenu = uicontextmenu;
-            % handles.Data.hActionChunkContextMenuItems(1) =...
-            %     uimenu(handles.Data.hActionChunkContextMenu, 'label', 'Delete Action Chunk');
-
+            
             % Update handles structure
             guidata(hObject, handles);
 
@@ -995,9 +1167,9 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
     %
     % Clear the axes if necessary...
     %
-    if handles.Data.updateplots
-        cla(handles.MainAxes);
-    end
+    % if handles.Data.updateplots
+    %     cla(handles.MainAxes);
+    % end
     
     %
     % Plot a green selection box...
@@ -1005,15 +1177,21 @@ function [hObject, eventdata, handles] = updatemainplot(hObject, eventdata, hand
     if handles.Data.CurrentLeftButtonState == handles.Data.LeftButtonStates.INMOTION &&...
        handles.Data.LastLeftButtonState ~= handles.Data.LeftButtonStates.UP
                 
-        if handles.Data.isselectionplotted && ishandle(handles.Data.hSelection)
-            delete(handles.Data.hSelection);
-            handles.Data.isselectionplotted = false;            
+        if handles.Data.isselectionplotted
+            handles.Data.isselectionplotted = false;
         end
         
-        if handles.Data.istrackinglineplotted
-            delete(handles.Data.hTrackingLine);
+        if ishandle(handles.Data.hSelection)
+            delete(handles.Data.hSelection);                        
+        end
+        
+        if handles.Data.istrackinglineplotted            
             handles.Data.istrackinglineplotted = false;
         end       
+        
+        if ishandle(handles.Data.hTrackingLine)
+            delete(handles.Data.hTrackingLine);
+        end
         
         x_1 = round(handles.Data.DownPoint(1));
         y_1 = handles.Data.mainAxesMinY;
@@ -1317,7 +1495,7 @@ function StepButton_Callback(hObject, eventdata, handles)
 % --- Executes on selection of New Action Chunk context menu item.
 function NewActionChunk_Callback(hObject, eventdata, handles)
 
-    if handles.Data.isselectionplotted                
+    if handles.Data.isselectionplotted
         
         % Grab new action chunk info...
         XData = get(handles.Data.hSelection, 'XData');

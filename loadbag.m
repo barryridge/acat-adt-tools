@@ -86,7 +86,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
         BagFileName = strrep(BagFileName, ' ', '\ ');
         
         if guidialogs
-            progress = progress + 0.1;
+            % progress = progress + 0.1;
             hProgressBar = waitbar(progress, 'Loading ROS bag file...');
         else
             fprintf('Loading ROS bag file...');
@@ -111,7 +111,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     
     % Read rosbag topic info...
     if guidialogs
-        progress = progress + 0.1;
+        % progress = progress + 0.1;
         waitbar(progress, hProgressBar, 'Loading ROS bag topic info...');
     else        
         fprintf('Loading ROS bag topic info');
@@ -122,7 +122,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     BagTopicStrings = strsplit(BagInfo(findstr(BagInfo, 'topics:'):end), '\n');
     
     if guidialogs
-        increment = round((0.5 - progress) / length(BagTopicStrings));
+        increment = ((1.0 - progress) / 2) / length(BagTopicStrings);
     end
 
     topiccounter = 1;
@@ -149,7 +149,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     end
 
     if guidialogs
-        progress = 0.5;
+        % progress = progress + 0.1;
         waitbar(progress, hProgressBar, '...finished loading ROS bag topic info!');
     else
         fprintf('finished!\n');
@@ -157,15 +157,15 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     
     % Read topics...
     if guidialogs
-        progress = 0.6;
-        waitbar(progress, hProgressBar, 'Reading ROS bag topics.  This can take some time.  Grab a coffee.');
+        % progress = progress + 0.1;
+        waitbar(progress, hProgressBar, 'Reading ROS bag topics. This can take some time...');
     else
         fprintf('Reading ROS bag topics.  This can take some time.  Grab a coffee or watch the dots.');
     end
     
     % Calculate the progress bar increment...
     if guidialogs
-        increment = round((0.5 - progress) / length(BagTopicNames));
+        increment = ((1.0 - progress) / 2) / length(BagTopicNames);
     end
 
     % Read all data in each topic separately...
@@ -183,8 +183,9 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     end
 
     if guidialogs
-        progress = 1.0
+        progress = 1.0;
         waitbar(progress, hProgressBar, 'Finished!');
+        close(hProgressBar);
     else
         fprintf('finished!\n');    
     end
