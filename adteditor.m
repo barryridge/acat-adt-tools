@@ -295,7 +295,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 
                                % Load ros bag file...
                                 [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
-                                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));
+                                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), true);
 
                             case 'No'
 
@@ -314,7 +314,7 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 
                 % Load ros bag file...
                 [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
-                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName));            
+                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), true);            
 
             else
                 

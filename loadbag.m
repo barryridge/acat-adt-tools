@@ -1,4 +1,4 @@
-function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicTypes] = loadbag(BagSpec)
+function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicTypes] = loadbag(BagSpec, varargin)
 
     % Output variables...
     BagOut = [];
@@ -8,6 +8,18 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     BagTopicNames = [];
     BagTopicSizes = [];
     BagTopicTypes = [];
+    
+    % Flags...
+    guidialogs = false;
+    hProgressBar = [];
+    progress = 0.0;
+    
+    % Check varargin...
+    if nargin >= 1
+        if islogical(varargin{end})
+            guidialogs = varargin{end};
+        end
+    end
     
     % Check BagSpec argument...
     if ischar(BagSpec) && isdir(BagSpec)                        
@@ -48,13 +60,21 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
             BagMsg = BagSpec{3};
 
         else
-            error('adtgenerator: argument 1 was not in [Bag, Meta, Msg] format!');
+            if guidialogs
+                errordlg('loadbag: argument 1 was not in [Bag, Meta, Msg] format!');
+            else
+                error('loadbag: argument 1 was not in [Bag, Meta, Msg] format!');
+            end
         end
 
     else
-
-        error(['loadbag: argument 1 should be either a directory name, '...
-               'a rosbag file name or a rosbag struct.']);
+        if guidialogs
+            errordlg(['loadbag: argument 1 should be either a directory name, '...
+                      'a rosbag file name or a rosbag struct.']);
+        else
+            error(['loadbag: argument 1 should be either a directory name, '...
+                   'a rosbag file name or a rosbag struct.']);
+        end
 
     end
 
@@ -65,23 +85,48 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
         BagDirName = strrep(BagDirName, ' ', '\ ');
         BagFileName = strrep(BagFileName, ' ', '\ ');
         
-        fprintf('Loading rosbag file...');
+        if guidialogs
+            progress = progress + 0.1;
+            hProgressBar = waitbar(progress, 'Loading ROS bag file...');
+        else
+            fprintf('Loading ROS bag file...');
+        end
+                
         BagOut = ros.Bag.load(fullfile(BagDirName, BagFileName));
-        fprintf('finished!\n');
+        
+        if guidialogs
+            progress = progress + 0.1;
+            waitbar(progress, hProgressBar, '...finished loading rosbag file!');
+        else
+            fprintf('finished!\n');
+        end
 
     else
-        error('adtgenerator: No rosbag specified!');
+        if guidialogs
+            errordlg('loadbag: No ROS bag specified!');
+        else            
+            error('loadbag: No ROS bag specified!');
+        end
     end    
     
-    % Read rosbag topic info...     
-    fprintf('Loading rosbag topic info');
+    % Read rosbag topic info...
+    if guidialogs
+        progress = progress + 0.1;
+        waitbar(progress, hProgressBar, 'Loading ROS bag topic info...');
+    else        
+        fprintf('Loading ROS bag topic info');
+    end
 
     % Parse info from the rosbag...
     BagInfo = BagOut.info();
     BagTopicStrings = strsplit(BagInfo(findstr(BagInfo, 'topics:'):end), '\n');
+    
+    if guidialogs
+        increment = round((0.5 - progress) / length(BagTopicStrings));
+    end
 
     topiccounter = 1;
-    for iTopic = 1:length(BagTopicStrings)            
+    for iTopic = 1:length(BagTopicStrings)
 
         BagTopicInfo = strsplit(BagTopicStrings{iTopic});
 
@@ -94,14 +139,34 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
         topiccounter = topiccounter + 1;
 
         % Print progress dots...
-        fprintf('.');
+        if guidialogs
+            progress = progress + increment;
+            waitbar(progress, hProgressBar);
+        else
+            fprintf('.');
+        end
 
     end
 
-    fprintf('finished!\n');        
+    if guidialogs
+        progress = 0.5;
+        waitbar(progress, hProgressBar, '...finished loading ROS bag topic info!');
+    else
+        fprintf('finished!\n');
+    end
     
-    % Read topics...    
-    fprintf('Reading rosbag topics.  This can take some time.  Grab a coffee or watch the dots.');
+    % Read topics...
+    if guidialogs
+        progress = 0.6;
+        waitbar(progress, hProgressBar, 'Reading ROS bag topics.  This can take some time.  Grab a coffee.');
+    else
+        fprintf('Reading ROS bag topics.  This can take some time.  Grab a coffee or watch the dots.');
+    end
+    
+    % Calculate the progress bar increment...
+    if guidialogs
+        increment = round((0.5 - progress) / length(BagTopicNames));
+    end
 
     % Read all data in each topic separately...
     for iTopic = 1:length(BagTopicNames)        
@@ -109,7 +174,17 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
         [BagMsg{iTopic} BagMeta{iTopic}] = BagOut.readAll({BagTopicNames{iTopic}});
 
         % Print progress dots...
-        fprintf('.');
+        if guidialogs
+            progress = progress + increment;
+            waitbar(progress, hProgressBar);        
+        else
+            fprintf('.');
+        end
     end
 
-    fprintf('finished!\n');    
+    if guidialogs
+        progress = 1.0
+        waitbar(progress, hProgressBar, 'Finished!');
+    else
+        fprintf('finished!\n');    
+    end
