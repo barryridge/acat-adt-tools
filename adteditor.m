@@ -492,8 +492,8 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
                     end
                     
                 else
-                    
-                    errordlg('No ROS bag file specified in ADT XML file!');
+                                        
+                    errordlg('No ROS bag file specified!');
                     
                 end
 
@@ -505,13 +505,19 @@ function adteditor_OpeningFcn(hObject, eventdata, handles, varargin)
 
             else
                 
-                errordlg('No ROS bag file specified!');
+                errordlg('No ROS bag file specified in ADT XML file!');
                 
             end
             
+        elseif ~isempty(handles.Data.BagFileName)
+
+                % Load ros bag file...
+                [handles.Data.ADTBag, handles.Data.ADTBagMeta, handles.Data.ADTBagMsg] =...
+                    loadbag(fullfile(handles.Data.BagDirName, handles.Data.BagFileName), true);            
+            
         else
             
-            errordlg('No XML file specified!');
+            errordlg('No ADT XML file or ROS bag file specified!');
             
         end
                 
