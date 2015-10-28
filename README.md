@@ -1,4 +1,4 @@
-![ACat Project Logo](https://github.com/barryridge/acat-adt-tools/images/acatlogo.png)
+![ACat Project Logo](https://raw.githubusercontent.com/barryridge/acat-adt-tools/master/images/acatlogo.png "ACat Project Logo")
 
 # ACAT ADT Tools #
 
