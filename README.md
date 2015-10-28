@@ -1,8 +1,10 @@
-# ACAT ADT GENERATOR/GUI EDITOR #
+# ACAT ADT Tools #
+
+GENERATOR/GUI EDITOR 
 
 Generates new, or populates existing, ADT XML files using rosbag recordings.
 
-### INSTALL ###
+### Install ###
 
 1. Install the following prerequisites:
 
@@ -18,14 +20,14 @@ Generates new, or populates existing, ADT XML files using rosbag recordings.
 
 2. Change the path settings in the setpaths.m file.
 
-### USAGE ###
+### Usage ###
 
 Try running the demo.m file.  A path pointing to a sample rosbag needs to be changed in there too.
 
 The demo file will load up a rosbag file, generate ADT XML from it using the adttool script, and start the adteditor GUI tool.
 
 
-### RELEASE NOTES ###
+### Release Notes ###
 
 v0.2, 23/3/2015: Major update to adteditor.  Still some work to be done on the interface, but the hard work has been completed.
 
