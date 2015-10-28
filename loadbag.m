@@ -15,7 +15,7 @@ function [BagOut BagMeta BagMsg BagInfo BagTopicNames BagTopicSizes BagTopicType
     progress = 0.0;
     
     % Check varargin...
-    if nargin >= 1
+    if nargin >= 2
         if islogical(varargin{end})
             guidialogs = varargin{end};
         end
