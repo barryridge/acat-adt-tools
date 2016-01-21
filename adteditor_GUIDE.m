@@ -2256,7 +2256,7 @@ function SaveMenuItem_Callback(hObject, eventdata, handles)
                 end
             end
         end
-
+                
         % Build up argument list...
         Args = {'xml', handles.Data.XMLFileName};
 
@@ -2278,6 +2278,10 @@ function SaveMenuItem_Callback(hObject, eventdata, handles)
 
         if ~isempty(handles.Data.SECButtons)
             Args = {Args{:} 'SEC' SEC};
+        end
+        
+        if handles.Data.iTimingTopic > 0
+            Args = {Args{:} 'TimingTopic' handles.Data.iTimingTopic};
         end
 
         % Pass everything to adttool...
