@@ -303,7 +303,7 @@ function varargout = adttool(BagSpec, varargin)
                 i=i+1; if isnumeric(varargin{i}) SEC = varargin{i}; else argok = 0; end
                 
             case {'timingtopic', 'timing_topic', 'timing-topic', 'timetopic', 'time_topic', 'time-topic'},
-                i=i+1; if isnumeric(varargin{i}) TimingTopic = varargin{i}; else argok = 0; end
+                i=i+1; if ischar(varargin{i}) TimingTopic = varargin{i}; else argok = 0; end
                 
             case {'set'},
                 i=i+1; if ischar(varargin{i}) SetList{end+1}.Node = varargin{i}; else argok = 0; end

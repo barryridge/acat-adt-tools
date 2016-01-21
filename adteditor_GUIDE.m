@@ -2285,7 +2285,7 @@ function SaveMenuItem_Callback(hObject, eventdata, handles)
         end
         
         if handles.Data.iTimingTopic > 0
-            Args = {Args{:} 'TimingTopic' handles.Data.iTimingTopic};
+            Args = {Args{:} 'TimingTopic' handles.Data.ADTBagTopicNames{handles.Data.iTimingTopic}};
         end
 
         % Pass everything to adttool...
