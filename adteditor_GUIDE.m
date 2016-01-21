@@ -717,7 +717,11 @@ function adteditor_GUIDE_OpeningFcn(hObject, eventdata, handles, varargin)
 
             % figure(handles.MainFig, 'pos',[300,300,150,150]);
             set(handles.Data.hTreeContainer, 'Parent',handles.MainFig);
-            set(handles.Data.hTreeContainer, 'Units','pixels', 'Position', [20 180 160 500]);
+            % set(handles.Data.hTreeContainer, 'Units','pixels', 'Position', [20 180 160 500]);
+            set(handles.MainAxes, 'Units', 'pixels');
+            MainAxesPosition = get(handles.MainAxes, 'Position');
+            set(handles.Data.hTreeContainer, 'Units','pixels', 'Position',...
+                [20, MainAxesPosition(2), MainAxesPosition(1) - 80, MainAxesPosition(4)]);
 
             %
             % Set up action chunk mask...
