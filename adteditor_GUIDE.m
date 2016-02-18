@@ -2342,6 +2342,9 @@ function OpenMenuItem_Callback(hObject, eventdata, handles)
     end   
 
     handles.Data.fileinputspecified = true;
+    
+    % Clear the axes
+    cla;
 
     % Update handles structure
     guidata(hObject, handles);
