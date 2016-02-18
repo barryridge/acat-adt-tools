@@ -2329,8 +2329,17 @@ function OpenMenuItem_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-    [FileName,PathName,FilterIndex] =...
+    if isfield(handles.Data, 'defaultPath')
+        [FileName,PathName,FilterIndex] =...
+            uigetfile({'*.xml'; '*.txt'; '*.bag'},...
+            'Open ADT XML file or ROS bag file',...
+            handles.Data.defaultPath);
+    else        
+        [FileName,PathName,FilterIndex] =...
             uigetfile({'*.xml'; '*.txt'; '*.bag'}, 'Open ADT XML file or ROS bag file');
+        
+        handles.Data.defaultPath = PathName;
+    end   
 
     handles.Data.fileinputspecified = true;
 
