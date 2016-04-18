@@ -59,7 +59,7 @@ function adteditor_GUIDE_OpeningFcn(hObject, eventdata, handles, varargin)
     % but only if the opening function is being called for
     % the first time...
     %
-    if ~isfield(handles, 'Data') 
+    if ~isfield(handles, 'Data') || handles.Data.fileinputspecified
 
         % Choose default command line output for adteditor_GUIDE
         handles.output = hObject;        
@@ -138,6 +138,7 @@ function adteditor_GUIDE_OpeningFcn(hObject, eventdata, handles, varargin)
 
         % SEC...
         handles.Data.SECButtons = [];
+        [hObject, eventdata, handles] = updatesecpanel(hObject, eventdata, handles);
 
         % Plot flags...
         handles.Data.isselectionplotted = false;
@@ -225,10 +226,14 @@ function adteditor_GUIDE_OpeningFcn(hObject, eventdata, handles, varargin)
                 case {'.bag'}
                     handles.Data.BagDirName = Pathstr;
                     handles.Data.BagFileName = [FileName, Ext];
+                    handles.Data.XMLDirName = [];
+                    handles.Data.XMLFileName = [];
 
                 case {'.xml', '.txt'}
                     handles.Data.XMLDirName = Pathstr;
                     handles.Data.XMLFileName = [FileName, Ext];
+                    handles.Data.BagDirName = [];
+                    handles.Data.BagFileName = [];
             end
 
             handles.Data.fileinputspecified = true;
@@ -2165,10 +2170,19 @@ function SaveMenuItem_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
     % Pull up a file selection menu...
-    if isempty(handles.Data.XMLFileName)        
+    if isempty(handles.Data.XMLFileName)
+        
+        if isfield(handles.Data, 'defaultPath') && isstr(handles.Data.defaultPath)
+            [XMLFileName,PathName,FilterIndex] =...
+                uiputfile({'*.xml'; '*.txt'},...
+                          'Export ADT XML',...
+                          fullfile(handles.Data.defaultPath, 'output.xml'));
+        else        
+            [XMLFileName,PathName,FilterIndex] =...
+                uiputfile({'*.xml'; '*.txt'}, 'Export ADT XML', 'output.xml');
 
-        [XMLFileName,PathName,FilterIndex] =...
-            uiputfile({'*.xml'; '*.txt'}, 'Export ADT XML', 'output.xml');
+            handles.Data.defaultPath = PathName;
+        end        
 
         if XMLFileName ~= 0
             handles.Data.XMLFileName = fullfile(PathName, XMLFileName);
@@ -2329,7 +2343,7 @@ function OpenMenuItem_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-    if isfield(handles.Data, 'defaultPath')
+    if isfield(handles.Data, 'defaultPath') && isstr(handles.Data.defaultPath)
         [FileName,PathName,FilterIndex] =...
             uigetfile({'*.xml'; '*.txt'; '*.bag'},...
             'Open ADT XML file or ROS bag file',...
