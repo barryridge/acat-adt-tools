@@ -219,6 +219,17 @@ function varargout = adttool(BagSpec, varargin)
                 ADTBagMeta = BagSpec{2};
                 ADTBagMsg = BagSpec{3};
                 
+                % Get the file name...                
+                if ~isempty(ADTBag.path)
+                    [Pathstr, BagFileName, Ext] = fileparts(ADTBag.path);
+                    BagFileName = [BagFileName Ext];
+                    if isempty(Pathstr)
+                        Pathstr = '.';
+                    else
+                        BagDirName = Pathstr;
+                    end
+                end
+                
             else
                 error('adttool: argument 1 was not in [Bag, Meta, Msg] format!');
             end
@@ -441,7 +452,7 @@ function varargout = adttool(BagSpec, varargin)
             fprintf('No ADT XML file found.\n');
             fprintf('Generating ADT XML boilerplate...');
 
-            if ~isempty(BagFileName)
+            if isempty(XMLFileName) && ~isempty(BagFileName)
                 [~, XMLFileName, ~] = fileparts(BagFileName);
                 XMLFileName = ['ADT_' XMLFileName '.xml'];
             end
